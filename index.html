@@ -1,0 +1,1451 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Premise Retraction Playground</title>
+<meta name="description" content="A miniature proof that learning can be premise-tracked: retract a training example and the weights become exactly those of a model trained on the rest.">
+<style>
+:root{
+  --paper:#f4f2ec;
+  --panel:#fffdf8;
+  --ink:#15171a;
+  --ink2:#3f423d;
+  --muted:#77786f;
+  --line:#dbd6c8;
+  --line2:#ece7da;
+  --accent:#14463a;
+  --accent-soft:#e6efe9;
+  --pass:#156039;
+  --pass-bg:#e6f1e8;
+  --pass-line:#b9d5c2;
+  --fail:#a03218;
+  --fail-bg:#fbe8e2;
+  --fail-line:#e8bfb2;
+  --idle:#6a675e;
+  --idle-bg:#efece3;
+  --amber:#8a6413;
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Helvetica, Arial, sans-serif;
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:
+    radial-gradient(1200px 500px at 12% -10%, #fbf9f3 0%, rgba(251,249,243,0) 70%),
+    var(--paper);
+  color:var(--ink);
+  font-family:var(--sans);
+  font-size:14px;
+  line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1440px;margin:0 auto;padding:22px 22px 60px}
+
+/* ---------- header ---------- */
+header.top{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:16px}
+.titleblock h1{
+  font-family:var(--serif);
+  font-size:30px;
+  line-height:1.12;
+  margin:0 0 4px;
+  letter-spacing:-0.015em;
+  font-weight:600;
+}
+.titleblock .sub{color:var(--ink2);font-size:13.5px;max-width:62ch;margin:0}
+.titleblock .kicker{
+  font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);
+  margin-bottom:8px;font-weight:600;
+}
+.actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+.btn{
+  font-family:var(--sans);font-size:12.5px;font-weight:600;
+  border:1px solid var(--line);background:var(--panel);color:var(--ink);
+  padding:8px 13px;border-radius:7px;cursor:pointer;line-height:1;
+  transition:background .12s ease,border-color .12s ease,transform .06s ease;
+  white-space:nowrap;
+}
+.btn:hover{background:#f7f4ec;border-color:#c9c4b4}
+.btn:active{transform:translateY(1px)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#f7fbf8}
+.btn.primary:hover{background:#0f3a30;border-color:#0f3a30}
+.btn.ghost{background:transparent}
+.btn.tiny{padding:5px 9px;font-size:11.5px;border-radius:6px}
+.btn.danger{color:var(--fail);border-color:#e3c9bf}
+.btn.danger:hover{background:var(--fail-bg)}
+
+/* ---------- status banner ---------- */
+.banner{
+  border:1px solid var(--line);border-radius:10px;background:var(--panel);
+  padding:14px 16px;margin-bottom:14px;display:flex;gap:16px;align-items:center;
+  flex-wrap:wrap;
+}
+.banner.pass{background:var(--pass-bg);border-color:var(--pass-line)}
+.banner.fail{background:var(--fail-bg);border-color:var(--fail-line)}
+.banner .stamp{
+  font-family:var(--mono);font-size:26px;font-weight:700;letter-spacing:-0.02em;
+  padding:4px 14px;border-radius:8px;border:1px solid transparent;line-height:1.2;
+}
+.banner.pass .stamp{color:#fff;background:var(--pass)}
+.banner.fail .stamp{color:#fff;background:var(--fail)}
+.banner.idle .stamp{color:var(--idle);background:#e5e1d6}
+.banner .btext{flex:1;min-width:240px}
+.banner .bline{font-size:13px;color:var(--ink2)}
+.banner .bsub{font-size:11.5px;color:var(--muted);margin-top:2px;font-family:var(--mono)}
+.banner .bmeta{font-family:var(--mono);font-size:11px;color:var(--muted);text-align:right;line-height:1.7}
+
+/* ---------- layout ---------- */
+.layout{display:grid;grid-template-columns:minmax(330px,1.02fr) minmax(400px,1.42fr) minmax(300px,.96fr);gap:14px;align-items:start}
+@media (max-width:1180px){
+  .layout{grid-template-columns:minmax(300px,1fr) minmax(360px,1.22fr)}
+  .col-left{order:1}
+  .col-main{order:2}
+  .col-right{order:3;grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:14px;align-items:start}
+  .col-right > .panel{margin-bottom:0}
+}
+@media (max-width:820px){
+  .layout{grid-template-columns:1fr}
+  .col-left,.col-main,.col-right{order:0}
+  .col-right{grid-template-columns:1fr;gap:0}
+  .col-right > .panel{margin-bottom:14px}
+}
+
+.panel{
+  border:1px solid var(--line);border-radius:10px;background:var(--panel);
+  margin-bottom:14px;overflow:hidden;
+}
+.panel > .ph{
+  display:flex;align-items:baseline;justify-content:space-between;gap:10px;
+  padding:10px 14px;border-bottom:1px solid var(--line2);background:#fbf8f1;
+}
+.panel > .ph h2{
+  font-family:var(--serif);font-size:14.5px;margin:0;font-weight:600;letter-spacing:.01em;
+}
+.panel > .ph .meta{font-family:var(--mono);font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.panel .pb{padding:12px 14px}
+.panel .pb.tight{padding:0}
+
+/* ---------- tables ---------- */
+table{width:100%;border-collapse:collapse}
+th{
+  font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);
+  text-align:left;font-weight:600;padding:8px 10px;border-bottom:1px solid var(--line2);
+  white-space:nowrap;
+}
+td{padding:7px 10px;border-bottom:1px solid var(--line2);vertical-align:middle;font-size:12.5px}
+tr:last-child td{border-bottom:none}
+td.num,th.num{text-align:right;font-family:var(--mono);font-size:12px;font-variant-numeric:tabular-nums}
+tr.inactive td{color:#9b9a92}
+tr.inactive .pname{text-decoration:line-through}
+.pname{font-weight:600}
+.tag{
+  display:inline-block;font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;
+  text-transform:uppercase;padding:2px 6px;border-radius:4px;border:1px solid var(--line);
+  color:var(--muted);background:#f7f4ec;white-space:nowrap;
+}
+.tag.on{color:var(--pass);border-color:var(--pass-line);background:var(--pass-bg)}
+.tag.off{color:var(--fail);border-color:var(--fail-line);background:var(--fail-bg)}
+.rowacts{display:flex;gap:6px;justify-content:flex-end}
+tr.detail td{background:#fbf9f3;padding:10px 12px 12px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;font-family:var(--mono);font-size:11.5px;color:var(--ink2)}
+.kv .k{color:var(--muted);white-space:nowrap}
+.kv .v{font-variant-numeric:tabular-nums}
+.matrix{display:inline-grid;grid-template-columns:auto auto;gap:1px 14px;font-family:var(--mono);font-size:11.5px}
+.matrix span{text-align:right;font-variant-numeric:tabular-nums}
+.bracket{border-left:1px solid var(--line);border-right:1px solid var(--line);padding:2px 8px}
+
+/* ---------- form ---------- */
+.form{display:grid;grid-template-columns:1.3fr .75fr .75fr .6fr auto;gap:6px;align-items:end}
+.form label{display:block;font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin-bottom:3px}
+.form input{
+  width:100%;font-family:var(--mono);font-size:12.5px;padding:7px 8px;border:1px solid var(--line);
+  border-radius:6px;background:#fffdfa;color:var(--ink);
+}
+.form input:focus{outline:2px solid #cfe0d6;outline-offset:1px;border-color:#9dbdaa}
+.formerr{font-family:var(--mono);font-size:11.5px;color:var(--fail);margin-top:8px;min-height:0}
+.hint{font-size:11.5px;color:var(--muted);margin:8px 0 0}
+@media (max-width:520px){.form{grid-template-columns:1fr 1fr}}
+
+/* ---------- weights ---------- */
+.wgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.wcell{border:1px solid var(--line2);border-radius:8px;padding:9px 11px;background:#fcfaf4}
+.wlabel{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:3px}
+.wval{font-family:var(--mono);font-size:21px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums;word-break:break-all}
+.wdec{font-family:var(--mono);font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+.modeline{
+  font-family:var(--mono);font-size:12px;margin-top:10px;padding:8px 10px;border-radius:7px;
+  background:#f2efe6;border:1px solid var(--line2);overflow-x:auto;white-space:nowrap;
+}
+.pillnote{font-size:11.5px;color:var(--muted);margin-top:8px}
+.warnbox{
+  font-size:11.5px;color:#7a5710;background:#fdf6e3;border:1px solid #e8d9ac;
+  padding:7px 10px;border-radius:7px;margin-top:9px;
+}
+
+/* ---------- chart ---------- */
+#chart{width:100%;display:block}
+.ax-grid{stroke:#e6e1d4;stroke-width:1}
+.ax-zero{stroke:#cbc6b6;stroke-width:1.2}
+.ax-line{stroke:#c2bdad;stroke-width:1.2}
+.ax-txt{fill:#8b8c83;font-family:var(--mono);font-size:9.5px}
+.fit-line{stroke:var(--accent);stroke-width:2.4;fill:none}
+.fit-ghost{stroke:#a9b8b0;stroke-width:2;fill:none;stroke-dasharray:5 4}
+.resid{stroke:#c1703c;stroke-width:1;stroke-dasharray:2 3;opacity:.85}
+.pt{fill:var(--accent);stroke:#fffdf8;stroke-width:1.6}
+.pt-retracted{fill:#fffdf8;stroke:#a03218;stroke-width:1.6;stroke-dasharray:3 2}
+.plabel{fill:var(--ink2);font-family:var(--mono);font-size:9.5px}
+.plabel-retracted{fill:#a03218;font-family:var(--mono);font-size:9.5px}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--muted);padding:2px 4px 8px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:-1px}
+
+/* ---------- log ---------- */
+#log{max-height:260px;overflow:auto}
+.logrow{display:grid;grid-template-columns:58px 74px 1fr;gap:8px;padding:6px 14px;border-bottom:1px solid var(--line2);font-size:12px;align-items:baseline}
+.logrow:last-child{border-bottom:none}
+.logrow .t{font-family:var(--mono);font-size:10.5px;color:var(--muted)}
+.logrow .k{font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent)}
+.logrow .k.retract{color:var(--fail)}
+.logrow .k.check{color:var(--pass)}
+.logrow .m{color:var(--ink2)}
+.logrow .m b{color:var(--ink);font-weight:600}
+.logrow .d{grid-column:3;font-family:var(--mono);font-size:10.5px;color:var(--muted);margin-top:-2px}
+
+/* ---------- check list ---------- */
+.checklist{list-style:none;margin:0;padding:0}
+.checklist li{display:flex;gap:9px;padding:7px 0;border-bottom:1px solid var(--line2);font-size:12.5px;align-items:flex-start}
+.checklist li:last-child{border-bottom:none}
+.tick{
+  font-family:var(--mono);font-size:11px;font-weight:700;width:18px;height:18px;flex:0 0 18px;
+  border-radius:5px;display:inline-flex;align-items:center;justify-content:center;margin-top:1px;
+}
+.tick.ok{background:var(--pass);color:#fff}
+.tick.no{background:var(--fail);color:#fff}
+.checklist .cm{flex:1}
+.checklist .cd{font-family:var(--mono);font-size:10.5px;color:var(--muted);margin-top:1px;word-break:break-word}
+
+/* ---------- misc ---------- */
+details.docs{margin-top:4px}
+details.docs summary{
+  cursor:pointer;font-family:var(--serif);font-size:14.5px;font-weight:600;padding:10px 14px;
+  border-bottom:1px solid var(--line2);background:#fbf8f1;list-style:none;
+}
+details.docs summary::-webkit-details-marker{display:none}
+details.docs summary:before{content:"▸ ";color:var(--muted)}
+details.docs[open] summary:before{content:"▾ "}
+details.docs .doc{padding:4px 16px 16px}
+details.docs h3{font-family:var(--serif);font-size:13.5px;margin:16px 0 5px}
+details.docs p,details.docs li{font-size:12.8px;color:var(--ink2);margin:6px 0}
+details.docs code,.mono{font-family:var(--mono);font-size:12px;background:#f3f0e7;padding:1px 4px;border-radius:4px}
+details.docs pre{background:#f3f0e7;border:1px solid var(--line2);border-radius:7px;padding:10px;overflow-x:auto;font-family:var(--mono);font-size:11.5px;color:var(--ink)}
+.frac{font-family:var(--mono);white-space:nowrap}
+.muted{color:var(--muted)}
+.small{font-size:11.5px}
+.nowrap{white-space:nowrap}
+.footer{margin-top:18px;font-size:11px;color:var(--muted);border-top:1px solid var(--line);padding-top:12px;display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.sweepout{margin-top:10px}
+.empty{padding:16px 14px;color:var(--muted);font-size:12.5px;text-align:center}
+.chip{
+  font-family:var(--mono);font-size:10.5px;padding:3px 8px;border-radius:99px;border:1px solid var(--line);
+  background:#f7f4ec;color:var(--muted);white-space:nowrap;
+}
+.chip.on{color:var(--pass);border-color:var(--pass-line);background:var(--pass-bg)}
+
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div class="titleblock">
+      <div class="kicker">Idol · learning that can be taken back</div>
+      <h1>Premise Retraction Playground</h1>
+      <p class="sub">Every training example is a named premise that contributes one exact, removable term to the model. Retract a premise and the weights become exactly the weights of a model trained only on the rest — checked automatically, never approximated.</p>
+    </div>
+    <div class="actions">
+      <span id="chipCount" class="chip">0 active</span>
+      <span id="chipExact" class="chip">unchecked</span>
+      <button id="btnDemo" class="btn primary" data-needs-idle>Run the demo</button>
+      <button id="btnTrain" class="btn ghost" data-needs-idle>Train</button>
+      <button id="btnCheck" class="btn" data-needs-idle>Verify exactness</button>
+      <button id="btnSweep" class="btn ghost" data-needs-idle>Retract each</button>
+      <button id="btnReset" class="btn ghost" data-needs-idle>Reset</button>
+    </div>
+  </header>
+
+  <div id="banner" class="banner idle">
+    <div class="stamp">NOT CHECKED</div>
+    <div class="btext">
+      <div class="bline">The ledger is empty. Add a premise, or press <b>Run the demo</b>.</div>
+    </div>
+  </div>
+
+  <div class="layout">
+
+    <!-- ============ left column ============ -->
+    <div class="col-left">
+      <section class="panel">
+        <div class="ph"><h2>Premise ledger</h2><span class="meta" id="ledgerMeta">0 active</span></div>
+        <div class="pb tight">
+          <table class="ledger">
+            <thead><tr>
+              <th>premise</th><th class="num">x</th><th class="num">y</th><th class="num">w</th><th>state</th><th></th>
+            </tr></thead>
+            <tbody id="ledgerBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="ph"><h2>Add a premise</h2><span class="meta">exact input</span></div>
+        <div class="pb">
+          <form id="addForm" class="form" autocomplete="off">
+            <div><label for="f-name">name</label><input id="f-name" name="name" placeholder="optional"></div>
+            <div><label for="f-x">x</label><input id="f-x" name="x" placeholder="2" required></div>
+            <div><label for="f-y">y</label><input id="f-y" name="y" placeholder="5" required></div>
+            <div><label for="f-w">weight</label><input id="f-w" name="weight" placeholder="1"></div>
+            <div><button class="btn primary" type="submit">Add</button></div>
+          </form>
+          <div id="formErr" class="formerr"></div>
+          <p class="hint">Decimals and fractions are both accepted (<span class="mono">0.5</span>, <span class="mono">1/3</span>) and read <em>exactly</em>: <span class="mono">0.1</span> becomes 1/10, never a binary float.</p>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="ph"><h2>Retract-each sweep</h2><span class="meta">every premise, in turn</span></div>
+        <div class="pb">
+          <div id="sweepOut" class="sweepout"></div>
+        </div>
+      </section>
+    </div>
+
+    <!-- ============ middle column ============ -->
+    <div class="col-main">
+      <section class="panel">
+        <div class="ph"><h2>Fit</h2><span class="meta">solid now · dashed before retraction</span></div>
+        <div class="pb tight">
+          <svg id="chart" viewBox="0 0 700 380" role="img" aria-label="Premises plotted against the fitted line"></svg>
+          <div class="legend" style="padding:0 14px 10px">
+            <span><i style="background:#14463a"></i>active premise</span>
+            <span><i style="background:#fffdf8;border:1.5px dashed #a03218"></i>retracted premise</span>
+            <span><i style="background:transparent;border-top:2.5px solid #14463a;border-radius:0;height:0;width:14px"></i>fit now</span>
+            <span><i style="background:transparent;border-top:2px dashed #a9b8b0;border-radius:0;height:0;width:14px"></i>fit before retraction</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="ph"><h2>Exactness check</h2><span class="meta">runs on every retraction</span></div>
+        <div class="pb"><div id="checkList"></div></div>
+      </section>
+
+      <section class="panel">
+        <div class="ph"><h2>Predictions</h2><span class="meta" id="predsMeta">—</span></div>
+        <div class="pb tight">
+          <table>
+            <thead><tr><th class="num">x</th><th class="num">ŷ now</th><th class="num">Δ</th></tr></thead>
+            <tbody id="predsBody"></tbody>
+          </table>
+          <form id="qForm" class="form" style="grid-template-columns:1fr auto;padding:10px 14px 4px" autocomplete="off">
+            <div><label for="f-qx">evaluate at x</label><input id="f-qx" name="qx" placeholder="2.5 or 7/3"></div>
+            <div><button class="btn tiny" type="submit">Predict</button></div>
+          </form>
+          <div id="qErr" class="formerr" style="padding:0 14px"></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="ph"><h2>Event log</h2><span class="meta">newest first</span></div>
+        <div class="pb tight"><div id="log"></div></div>
+      </section>
+    </div>
+
+    <!-- ============ right column ============ -->
+    <div class="col-right">
+      <section class="panel">
+        <div class="ph"><h2>Weights</h2><span class="meta">first-class values</span></div>
+        <div class="pb" id="weights"></div>
+      </section>
+
+      <section class="panel">
+        <div class="ph"><h2>Sufficient statistics</h2><span class="meta">running totals</span></div>
+        <div class="pb" id="stats"></div>
+      </section>
+
+      <section class="panel">
+        <div class="ph"><h2>Export</h2></div>
+        <div class="pb">
+          <p class="hint" style="margin-top:0">Premises, per-premise contributions, weights and check results, all as exact fractions.</p>
+          <button id="btnExport" class="btn">Download receipt (JSON)</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <details class="docs">
+          <summary>Contrast: a design that is not exact</summary>
+          <div class="doc">
+            <p class="hint" style="margin-top:12px">Gradient descent records one update per example, computed from weights that earlier examples had already moved. Subtracting a recorded update afterwards does not reproduce the model trained without that example.</p>
+            <button id="btnContrast" class="btn tiny">Run the float contrast</button>
+            <div id="contrastOut" class="sweepout"></div>
+            <p class="hint">Illustrative only, ordinary double-precision arithmetic, one pass, η = 0.1. This is not the app's model.</p>
+          </div>
+        </details>
+      </section>
+    </div>
+  </div>
+
+  <!-- ============ documentation ============ -->
+  <section class="panel" style="margin-top:2px">
+    <div class="ph"><h2>How this works</h2><span class="meta">the whole argument, in four paragraphs</span></div>
+    <div class="pb">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:22px">
+        <div>
+          <h3 style="font-family:var(--serif);font-size:14px;margin:0 0 4px">1 · The model</h3>
+          <p class="small" style="color:var(--ink2);margin:0">One input <span class="mono">x</span>, one output <span class="mono">y</span>, two weights: bias <span class="mono">b</span> and slope <span class="mono">w</span>, with <span class="mono">ŷ(x) = b + w·x</span>. The objective is least squares, <span class="mono">L = Σᵢ cᵢ(ŷ(xᵢ) − yᵢ)²</span>. Zeroing the derivative gives <span class="mono">Aθ = q</span>, where <span class="mono">A = Σᵢ cᵢx̃ᵢx̃ᵢᵀ</span> and <span class="mono">q = Σᵢ cᵢyᵢx̃ᵢ</span>, with <span class="mono">x̃ᵢ = (1, xᵢ)</span>. The weights are therefore a function of a <em>sum of per-premise terms</em> — nothing else.</p>
+        </div>
+        <div>
+          <h3 style="font-family:var(--serif);font-size:14px;margin:0 0 4px">2 · The retraction mechanism</h3>
+          <p class="small" style="color:var(--ink2);margin:0">Each premise stores exactly its own 2×2 block <span class="mono">Aᵢ</span> and its own 2-vector <span class="mono">qᵢ</span> — open a ledger row to see them. Adding a premise adds its block to the running totals; retracting it subtracts that block and nothing else, then re-solves. Restore adds it back. There is no replay, no re-shuffle, no retraining job.</p>
+        </div>
+        <div>
+          <h3 style="font-family:var(--serif);font-size:14px;margin:0 0 4px">3 · Why the check cannot fail</h3>
+          <p class="small" style="color:var(--ink2);margin:0">Every number is an exact rational (BigInt numerator and denominator), so a subtraction leaves no residue. The check then compares two <em>different</em> paths: the incrementally maintained totals with one term subtracted, against totals rebuilt by summing only the remaining premises from zero. It compares <span class="mono">b</span>, <span class="mono">w</span> and every prediction as exact rationals, confirms the removed term re-adds to the previous totals, and confirms the surviving contributions are byte-identical. Floats appear only as pixel coordinates on the chart.</p>
+        </div>
+        <div>
+          <h3 style="font-family:var(--serif);font-size:14px;margin:0 0 4px">4 · What is real, what is illustrative</h3>
+          <p class="small" style="color:var(--ink2);margin:0">Everything in the panels is computed live in your browser: real rational arithmetic, a real closed-form solve, a real check. Nothing is replayed from a recording. The demo premises (readings A, B, C) are arbitrary teaching data, not measurements of anything. Scope is two weights on purpose: the claim being demonstrated is the accounting, not the capacity.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="footer">
+    <span>Exact arithmetic: <span class="mono">BigInt</span> rationals. No libraries, no build step, no network calls, no storage.</span>
+    <span>Premise retraction playground · a miniature of Idol's premise-tracked learning</span>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   CORE — exact rational linear algebra for the premise model.
+   No floating point anywhere in the model or the check.
+   ============================================================ */
+
+function bgcd(a, b) {
+  a = a < 0n ? -a : a;
+  b = b < 0n ? -b : b;
+  while (b) { const t = a % b; a = b; b = t; }
+  return a;
+}
+
+class R {
+  constructor(n, d = 1n) {
+    if (typeof n === 'number') n = BigInt(Math.trunc(n));
+    if (typeof d === 'number') d = BigInt(Math.trunc(d));
+    if (d === 0n) throw new Error('zero denominator');
+    if (d < 0n) { n = -n; d = -d; }
+    const g = bgcd(n, d) || 1n;
+    this.n = n / g;
+    this.d = d / g;
+  }
+  static of(v) {
+    if (v instanceof R) return v;
+    if (typeof v === 'bigint') return new R(v);
+    if (typeof v === 'string') return R.parse(v);
+    if (typeof v === 'number') return R.parse(String(v));
+    throw new Error('cannot coerce to R');
+  }
+  static parse(input) {
+    let s = String(input).trim().replace(/,/g, '');
+    if (s === '') throw new Error('empty number');
+    let neg = false;
+    if (s[0] === '+') s = s.slice(1);
+    else if (s[0] === '-') { neg = true; s = s.slice(1); }
+    let n, d;
+    if (s.includes('/')) {
+      const parts = s.split('/');
+      if (parts.length !== 2) throw new Error('not a fraction: ' + input);
+      n = BigInt(parts[0].trim());
+      d = BigInt(parts[1].trim());
+    } else {
+      const m = /^(\d*)(?:\.(\d*))?(?:[eE]([+-]?\d+))?$/.exec(s);
+      if (!m || (m[1] === '' && !m[2])) throw new Error('not a number: ' + input);
+      const frac = m[2] || '';
+      n = BigInt((m[1] || '0') + frac);
+      d = 10n ** BigInt(frac.length);
+      const exp = m[3] ? parseInt(m[3], 10) : 0;
+      if (exp > 0) n *= 10n ** BigInt(exp);
+      else if (exp < 0) d *= 10n ** BigInt(-exp);
+    }
+    if (neg) n = -n;
+    return new R(n, d);
+  }
+  add(o) { o = R.of(o); return new R(this.n * o.d + o.n * this.d, this.d * o.d); }
+  sub(o) { o = R.of(o); return new R(this.n * o.d - o.n * this.d, this.d * o.d); }
+  mul(o) { o = R.of(o); return new R(this.n * o.n, this.d * o.d); }
+  div(o) { o = R.of(o); if (o.n === 0n) throw new Error('division by zero'); return new R(this.n * o.d, this.d * o.n); }
+  neg() { return new R(-this.n, this.d); }
+  eq(o) { o = R.of(o); return this.n === o.n && this.d === o.d; }
+  isZero() { return this.n === 0n; }
+  sign() { return this.n < 0n ? -1 : this.n > 0n ? 1 : 0; }
+  abs() { return new R(this.n < 0n ? -this.n : this.n, this.d); }
+  cmp(o) { o = R.of(o); const l = this.n * o.d, r = o.n * this.d; return l < r ? -1 : l > r ? 1 : 0; }
+  toNumber() { return Number(this.n) / Number(this.d); }
+  toString() { return this.d === 1n ? String(this.n) : this.n + '/' + this.d; }
+  dec(digits = 6) {
+    const v = this.toNumber();
+    if (!isFinite(v)) return String(v);
+    return v.toFixed(digits);
+  }
+}
+
+const R0 = () => new R(0n);
+
+/* ---------- exact linear solve (Gaussian elimination over Q) ---------- */
+function solveLinear(A, b) {
+  const n = b.length;
+  const M = A.map((row, i) => row.concat([b[i]]));
+  const pivotCols = [];
+  let r = 0;
+  for (let c = 0; c < n && r < n; c++) {
+    let p = -1;
+    for (let i = r; i < n; i++) if (!M[i][c].isZero()) { p = i; break; }
+    if (p === -1) continue;
+    const tmp = M[r]; M[r] = M[p]; M[p] = tmp;
+    const pv = M[r][c];
+    M[r] = M[r].map((v) => v.div(pv));
+    for (let i = 0; i < n; i++) {
+      if (i === r || M[i][c].isZero()) continue;
+      const f = M[i][c];
+      M[i] = M[i].map((v, j) => v.sub(f.mul(M[r][j])));
+    }
+    pivotCols.push(c);
+    r++;
+  }
+  for (let i = r; i < n; i++) {
+    if (M[i].slice(0, n).every((v) => v.isZero()) && !M[i][n].isZero()) {
+      return { ok: false, inconsistent: true, rank: r };
+    }
+  }
+  const x = new Array(n).fill(0).map(R0);
+  pivotCols.forEach((c, i) => { x[c] = M[i][n]; });
+  return { ok: true, x, rank: r, singular: r < n, pivotCols };
+}
+
+/* ---------- sufficient statistics ----------
+   For the model  yhat(x) = b + w*x  the least-squares objective is
+
+       L(theta) = SUM_i c_i * (theta . (1, x_i) - y_i)^2
+
+   Each premise contributes a 2x2 matrix A_i and a vector q_i, and the
+   normal equations are  (SUM_i A_i) theta = (SUM_i q_i).
+   The statistics are therefore an exact, additive sum over premises.
+*/
+const ZERO_STATS = () => ({
+  A: [[R0(), R0()], [R0(), R0()]],
+  q: [R0(), R0()],
+});
+
+function statsAdd(s, t) {
+  return {
+    A: [
+      [s.A[0][0].add(t.A[0][0]), s.A[0][1].add(t.A[0][1])],
+      [s.A[1][0].add(t.A[1][0]), s.A[1][1].add(t.A[1][1])],
+    ],
+    q: [s.q[0].add(t.q[0]), s.q[1].add(t.q[1])],
+  };
+}
+
+function statsSub(s, t) {
+  return {
+    A: [
+      [s.A[0][0].sub(t.A[0][0]), s.A[0][1].sub(t.A[0][1])],
+      [s.A[1][0].sub(t.A[1][0]), s.A[1][1].sub(t.A[1][1])],
+    ],
+    q: [s.q[0].sub(t.q[0]), s.q[1].sub(t.q[1])],
+  };
+}
+
+function statsEq(s, t) {
+  return s.A[0][0].eq(t.A[0][0]) && s.A[0][1].eq(t.A[0][1]) &&
+    s.A[1][0].eq(t.A[1][0]) && s.A[1][1].eq(t.A[1][1]) &&
+    s.q[0].eq(t.q[0]) && s.q[1].eq(t.q[1]);
+}
+
+function statsJSON(s) {
+  return [s.A[0][0], s.A[0][1], s.A[1][0], s.A[1][1], s.q[0], s.q[1]]
+    .map((v) => v.toString()).join('|');
+}
+
+/* ---------- one premise -> its exact contribution ---------- */
+function contributionOf(p) {
+  const c = R.of(p.weight);
+  const x = R.of(p.x);
+  const y = R.of(p.y);
+  const cx = c.mul(x);
+  const cy = c.mul(y);
+  return {
+    A: [[c, cx], [cx, cx.mul(x)]],
+    q: [cy, cy.mul(x)],
+  };
+}
+
+function sumStats(premises) {
+  let s = ZERO_STATS();
+  for (const p of premises) s = statsAdd(s, contributionOf(p));
+  return s;
+}
+
+/* ---------- train = solve the summed normal equations ---------- */
+function solveStats(stats) {
+  const res = solveLinear(stats.A, stats.q);
+  if (!res.ok) return { ok: false, theta: null, reason: 'inconsistent system' };
+  return {
+    ok: true,
+    theta: { b: res.x[0], w: res.x[1] },
+    rank: res.rank,
+    singular: res.singular,
+  };
+}
+
+function trainModel(premises) {
+  const stats = sumStats(premises);
+  const sol = solveStats(stats);
+  return {
+    stats,
+    theta: sol.theta,
+    solved: sol.ok,
+    rank: sol.rank,
+    singular: !!sol.singular,
+    n: premises.length,
+  };
+}
+
+function predict(theta, x) {
+  if (!theta) return null;
+  return theta.b.add(theta.w.mul(R.of(x)));
+}
+
+/* per-premise gradient term at theta: 2 c (theta.x - y) (1, x) */
+function gradientTerms(premises, theta) {
+  if (!theta) return [];
+  return premises.map((p) => {
+    const x = R.of(p.x);
+    const c = R.of(p.weight);
+    const err = theta.b.add(theta.w.mul(x)).sub(R.of(p.y));
+    const e = c.mul(err);
+    return { id: p.id, err, g0: e, g1: e.mul(x), sq: c.mul(err).mul(err) };
+  });
+}
+
+function gradientSum(terms) {
+  let g0 = R0(), g1 = R0();
+  for (const t of terms) { g0 = g0.add(t.g0); g1 = g1.add(t.g1); }
+  return { g0, g1 };
+}
+
+/* ---------- the exactness check ----------
+   Two genuinely different paths:
+     ACTUAL : the running totals that were maintained incrementally, with the
+              retracted premise's contribution SUBTRACTED out.
+     FRESH  : totals rebuilt by SUMMING only the remaining premises from zero.
+   In exact arithmetic they must agree by construction. Nothing is compared
+   approximately and nothing is skipped.
+*/
+function exactnessCheck({ actualStats, activePremises, theta, retractedIds, grid, retractionReceipt }) {
+  const fresh = trainModel(activePremises);
+  const checks = [];
+  const add = (name, pass, detail) => checks.push({ name, pass: !!pass, detail });
+
+  add('running totals equal a fresh sum of the remaining premises',
+    statsEq(actualStats, fresh.stats),
+    statsEq(actualStats, fresh.stats)
+      ? 'A and q agree term for term'
+      : 'A/q differ: ' + statsJSON(actualStats) + ' vs ' + statsJSON(fresh.stats));
+
+  const wEq = !!theta && !!fresh.theta &&
+    theta.b.eq(fresh.theta.b) && theta.w.eq(fresh.theta.w);
+  add('post-retraction weights are exactly the fresh weights', wEq,
+    theta && fresh.theta
+      ? 'b = ' + theta.b + ' vs ' + fresh.theta.b + ' ; w = ' + theta.w + ' vs ' + fresh.theta.w
+      : 'no weights to compare');
+
+  // predictions on the grid and on every remaining premise
+  const pts = [];
+  for (const x of grid) pts.push(R.of(x));
+  for (const p of activePremises) pts.push(R.of(p.x));
+  let predsOk = true;
+  let worst = '';
+  for (const x of pts) {
+    const a = predict(theta, x);
+    const b2 = predict(fresh.theta, x);
+    if (!a || !b2 || !a.eq(b2)) { predsOk = false; worst = 'first mismatch at x = ' + x; break; }
+  }
+  add('every prediction matches the fresh model', predsOk,
+    predsOk ? pts.length + ' predictions compared as exact rationals' : worst);
+
+  if (retractionReceipt) {
+    const back = statsAdd(actualStats, retractionReceipt.contribution);
+    const undoOk = statsEq(back, retractionReceipt.statsBefore);
+    add('adding the retracted contribution back restores the previous totals', undoOk,
+      undoOk ? 'A + q of the retracted premise reproduce the pre-retraction state exactly' : 'residual non-zero');
+  }
+
+  // nothing more: every remaining premise's contribution is untouched
+  let ledgerOk = true;
+  if (retractionReceipt && retractionReceipt.contributionsBefore) {
+    for (const p of activePremises) {
+      const before = retractionReceipt.contributionsBefore[p.id];
+      const now = statsJSON(contributionOf(p));
+      if (before !== now) { ledgerOk = false; break; }
+    }
+  }
+  add('the other premises were not touched', ledgerOk,
+    ledgerOk ? activePremises.length + ' contributions byte-identical before and after' : 'a surviving contribution changed');
+
+  const pass = checks.every((c) => c.pass);
+  return { pass, checks, fresh, actualStats, retractedIds: retractedIds.slice() };
+}
+
+
+/* ============================================================
+   UI — premise ledger, exact weights, predictions, chart, checks.
+   All model arithmetic comes from core.js (exact rationals).
+   ============================================================ */
+
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+const GRID = ['-2', '-1', '0', '0.5', '1', '1.5', '2', '2.5', '3', '4'];
+
+const state = {
+  premises: [],
+  stats: ZERO_STATS(),
+  theta: null,
+  rank: 0,
+  singular: false,
+  seq: 0,
+  receipt: null,
+  check: null,
+  sweep: null,
+  contrast: null,
+  queries: [],
+  log: [],
+  expanded: new Set(),
+  busy: false,
+};
+
+const activePremises = () => state.premises.filter((p) => p.active);
+const frac = (r) => (r ? r.toString() : '—');
+const ex = (r) => (r ? `<span class="frac">${esc(r.toString())}</span>` : '—');
+const dec = (r, d = 4) => (r ? r.dec(d) : '—');
+const fx = (v) => R.of(v).toNumber(); // exact value -> float, for pixel placement only
+
+function log(kind, msg, detail) {
+  state.log.unshift({ t: new Date(), kind, msg, detail });
+  if (state.log.length > 120) state.log.pop();
+}
+
+/* ---------------- model operations ---------------- */
+
+function retrain() {
+  const sol = solveStats(state.stats);
+  state.theta = sol.theta;
+  state.rank = sol.rank;
+  state.singular = !!sol.singular;
+  return sol;
+}
+
+function parseField(raw, label) {
+  try {
+    return R.parse(raw);
+  } catch (e) {
+    throw new Error(`${label}: ${e.message}`);
+  }
+}
+
+function addPremise({ name, x, y, weight }) {
+  const rw = weight === undefined || String(weight).trim() === '' ? R.parse('1') : parseField(weight, 'weight');
+  if (rw.sign() <= 0) throw new Error('weight must be greater than zero');
+  const rx = parseField(x, 'x');
+  const ry = parseField(y, 'y');
+  state.seq += 1;
+  const p = {
+    id: 'p' + state.seq,
+    name: (name || '').trim() || `premise-${state.seq}`,
+    x: rx.toString(),
+    y: ry.toString(),
+    weight: rw.toString(),
+    active: true,
+  };
+  state.premises.push(p);
+  state.stats = statsAdd(state.stats, contributionOf(p));
+  const sol = retrain();
+  state.receipt = null;
+  state.check = null;
+  log('add', `Added <b>${esc(p.name)}</b> — x ${esc(p.x)}, y ${esc(p.y)}, weight ${esc(p.weight)}`,
+    'contribution added to the running totals; normal equations re-solved exactly');
+  if (!sol.ok) log('warn', 'Solve did not produce weights', sol.reason || '');
+  return p;
+}
+
+function retract(id) {
+  const p = state.premises.find((q) => q.id === id);
+  if (!p || !p.active) return;
+  const contribution = contributionOf(p);
+  state.receipt = {
+    id: p.id,
+    name: p.name,
+    statsBefore: state.stats,
+    contribution,
+    contributionsBefore: Object.fromEntries(activePremises().map((q) => [q.id, statsJSON(contributionOf(q))])),
+    thetaBefore: state.theta,
+    predsBefore: Object.fromEntries(GRID.map((x) => [x, predict(state.theta, x)])),
+    at: new Date(),
+  };
+  state.stats = statsSub(state.stats, contribution);
+  p.active = false;
+  retrain();
+  state.check = runCheck();
+  log('retract', `Retracted <b>${esc(p.name)}</b> — subtracted its A and q from the totals`,
+    'weights re-solved from the remaining totals, then checked against a fresh fit');
+  log('check', state.check && state.check.pass ? 'Exactness check: PASS' : 'Exactness check: FAIL',
+    state.check ? `${state.check.checks.filter((c) => c.pass).length}/${state.check.checks.length} checks` : '');
+  return state.check;
+}
+
+function restore(id) {
+  const p = state.premises.find((q) => q.id === id);
+  if (!p || p.active) return;
+  state.stats = statsAdd(state.stats, contributionOf(p));
+  p.active = true;
+  retrain();
+  state.receipt = null;
+  state.check = null;
+  log('restore', `Restored <b>${esc(p.name)}</b> — its contribution was added back`,
+    'the previous retraction receipt no longer applies; check reset');
+}
+
+function runCheck() {
+  if (!state.receipt) return null;
+  return exactnessCheck({
+    actualStats: state.stats,
+    activePremises: activePremises(),
+    theta: state.theta,
+    retractedIds: state.premises.filter((p) => !p.active).map((p) => p.id),
+    grid: GRID.concat(state.queries),
+    retractionReceipt: state.receipt,
+  });
+}
+
+function resetAll(quiet) {
+  state.premises = [];
+  state.stats = ZERO_STATS();
+  state.theta = null;
+  state.seq = 0;
+  state.receipt = null;
+  state.check = null;
+  state.sweep = null;
+  state.contrast = null;
+  state.queries = [];
+  state.expanded = new Set();
+  state.log = [];
+  retrain();
+  if (!quiet) {
+    log('reset', 'Cleared the ledger and the model', 'statistics, weights and receipts discarded');
+    render();
+  }
+}
+
+/* sweep: retract each active premise algebraically and check it */
+function runSweep() {
+  const act = activePremises();
+  if (act.length < 2) {
+    state.sweep = { error: 'Need at least two active premises to sweep.' };
+    render();
+    return;
+  }
+  const baseStats = state.stats;
+  const beforeMap = Object.fromEntries(act.map((q) => [q.id, statsJSON(contributionOf(q))]));
+  const rows = act.map((p) => {
+    const contribution = contributionOf(p);
+    const after = statsSub(baseStats, contribution);
+    const sol = solveStats(after);
+    const rest = act.filter((q) => q.id !== p.id);
+    const res = exactnessCheck({
+      actualStats: after,
+      activePremises: rest,
+      theta: sol.theta,
+      retractedIds: [p.id],
+      grid: GRID,
+      retractionReceipt: { contribution, statsBefore: baseStats, contributionsBefore: beforeMap },
+    });
+    return {
+      name: p.name,
+      pass: res.pass,
+      n: res.checks.filter((c) => c.pass).length,
+      total: res.checks.length,
+      b: sol.theta ? sol.theta.b.toString() : '—',
+      w: sol.theta ? sol.theta.w.toString() : '—',
+    };
+  });
+  state.sweep = { rows, at: new Date() };
+  const all = rows.every((r) => r.pass);
+  log('check', `Sweep: retracted each of ${rows.length} premises in turn — ${all ? 'all exact' : 'a case failed'}`,
+    rows.map((r) => `${r.name}:${r.pass ? 'pass' : 'FAIL'}`).join(' · '));
+  render();
+}
+
+/* illustrative contrast: an order-dependent float learner */
+function floatContrast() {
+  const ps = activePremises();
+  if (ps.length < 2) return { error: 'Need at least two active premises.' };
+  const ETA = 0.1;
+  const sgd = (list) => {
+    let b = 0, w = 0;
+    const deltas = [];
+    for (const p of list) {
+      const x = fx(p.x), y = fx(p.y), c = fx(p.weight);
+      const r = b + w * x - y;
+      const db = ETA * c * r, dw = ETA * c * r * x;
+      b -= db; w -= dw;
+      deltas.push({ id: p.id, db, dw });
+    }
+    return { b, w, deltas };
+  };
+  const full = sgd(ps);
+  const rows = ps.map((p, i) => {
+    const naive = { b: full.b - full.deltas[i].db, w: full.w - full.deltas[i].dw };
+    const fresh = sgd(ps.filter((q) => q.id !== p.id));
+    return {
+      name: p.name,
+      naive,
+      fresh,
+      diff: Math.max(Math.abs(naive.b - fresh.b), Math.abs(naive.w - fresh.w)),
+      leftover: Math.max(Math.abs(full.deltas[i].db), Math.abs(full.deltas[i].dw)),
+    };
+  });
+  return { rows, worst: Math.max(...rows.map((r) => r.diff)) };
+}
+
+/* ---------------- rendering ---------------- */
+
+function renderBanner() {
+  const el = $('#banner');
+  const c = state.check;
+  if (!c) {
+    el.className = 'banner idle';
+    const n = activePremises().length;
+    el.innerHTML = `
+      <div class="stamp">NOT CHECKED</div>
+      <div class="btext">
+        <div class="bline">${n === 0
+          ? 'The ledger is empty. Add a premise, or press <b>Run the demo</b>.'
+          : 'No retraction is in effect. Retract a premise and the check runs automatically.'}</div>
+        <div class="bsub">${n === 0 ? 'w = 0, b = 0 by convention (nothing to fit)' : `${n} active premise${n === 1 ? '' : 's'} · weights solved exactly`}</div>
+      </div>
+      <div class="bmeta">exact rational arithmetic<br>no tolerance, no epsilon</div>`;
+    return;
+  }
+  const pass = c.pass;
+  const okN = c.checks.filter((x) => x.pass).length;
+  const retracted = state.premises.filter((p) => !p.active).map((p) => p.name);
+  const noneLeft = activePremises().length === 0;
+  el.className = 'banner ' + (pass ? 'pass' : 'fail');
+  const tb = c.actualStats && state.theta ? state.theta : null;
+  el.innerHTML = `
+    <div class="stamp">${pass ? 'PASS' : 'FAIL'}</div>
+    <div class="btext">
+      <div class="bline">${pass
+        ? (noneLeft
+          ? 'Every premise is retracted: the totals are exactly zero and both weights are 0, matching a model trained on nothing.'
+          : `Weights after retraction are <b>exactly</b> the weights of a model trained only on the remaining ${activePremises().length} premise${activePremises().length === 1 ? '' : 's'}.`)
+        : 'Post-retraction weights differ from a fresh model. This should be impossible by construction.'}</div>
+      <div class="bsub">${tb
+        ? `b = ${esc(frac(tb.b))} · w = ${esc(frac(tb.w))} · compared as exact rationals`
+        : 'no weights solved'}</div>
+    </div>
+    <div class="bmeta">${okN}/${c.checks.length} checks passed<br>retracted: ${esc(retracted.join(', ') || '—')}<br>${state.receipt ? state.receipt.at.toLocaleTimeString() : ''}</div>`;
+}
+
+function renderLedger() {
+  const body = $('#ledgerBody');
+  if (!state.premises.length) {
+    body.innerHTML = `<tr><td colspan="6"><div class="empty">No premises yet. Add one below, or run the demo.</div></td></tr>`;
+  } else {
+    body.innerHTML = state.premises.map((p) => {
+      const open = state.expanded.has(p.id);
+      const c = contributionOf(p);
+      const yhat = state.theta ? predict(state.theta, p.x) : null;
+      const resid = yhat ? yhat.sub(R.of(p.y)) : null;
+      const row = `
+        <tr class="prem ${p.active ? '' : 'inactive'}">
+          <td class="pname-cell">
+            <button class="btn tiny ghost caret" data-toggle="${p.id}" title="show this premise's contribution">${open ? '▾' : '▸'}</button>
+            <span class="pname">${esc(p.name)}</span>
+          </td>
+          <td class="num">${esc(p.x)}</td>
+          <td class="num">${esc(p.y)}</td>
+          <td class="num">${esc(p.weight)}</td>
+          <td>${p.active ? '<span class="tag on">active</span>' : '<span class="tag off">retracted</span>'}</td>
+          <td class="num"><div class="rowacts">
+            ${p.active
+              ? `<button class="btn tiny danger" data-retract="${p.id}">Retract</button>`
+              : `<button class="btn tiny" data-restore="${p.id}">Restore</button>`}
+          </div></td>
+        </tr>`;
+      const detail = open ? `
+        <tr class="detail"><td colspan="6">
+          <div class="kv">
+            <span class="k">A (2×2)</span>
+            <span class="v matrix bracket">
+              <span>${esc(c.A[0][0].toString())}</span><span>${esc(c.A[0][1].toString())}</span>
+              <span>${esc(c.A[1][0].toString())}</span><span>${esc(c.A[1][1].toString())}</span>
+            </span>
+            <span class="k">q (2)</span>
+            <span class="v matrix bracket"><span>${esc(c.q[0].toString())}</span><span>${esc(c.q[1].toString())}</span></span>
+            <span class="k">ŷ at x</span><span class="v">${yhat ? esc(frac(yhat)) + '  (' + esc(dec(yhat, 4)) + ')' : '—'}</span>
+            <span class="k">residual</span><span class="v">${resid && p.active ? esc(frac(resid)) : '—'}</span>
+            <span class="k">gradient</span><span class="v">${resid && p.active ? esc(frac(resid.mul(R.of(p.weight)).mul(R.parse('2')))) + ' · (1, ' + esc(p.x) + ')' : '— (not in the objective)'}</span>
+          </div>
+          <p class="hint">This row is the premise's entire footprint. Nothing else in the model refers to it.</p>
+        </td></tr>` : '';
+      return row + detail;
+    }).join('');
+  }
+
+  const n = activePremises().length;
+  $('#ledgerMeta').textContent = `${n} active / ${state.premises.length} total`;
+}
+
+function renderWeights() {
+  const t = state.theta;
+  const el = $('#weights');
+  const n = activePremises().length;
+  if (!t || n === 0) {
+    el.innerHTML = `<div class="empty">${state.premises.length
+      ? 'Every premise is retracted. With nothing left to fit, both weights are 0 by convention.'
+      : 'Add a premise to solve the weights.'}</div>`;
+    return;
+  }
+  el.innerHTML = `
+    <div class="wgrid">
+      <div class="wcell">
+        <div class="wlabel">bias b</div>
+        <div class="wval">${esc(frac(t.b))}</div>
+        <div class="wdec">≈ ${esc(dec(t.b, 6))}</div>
+      </div>
+      <div class="wcell">
+        <div class="wlabel">slope w</div>
+        <div class="wval">${esc(frac(t.w))}</div>
+        <div class="wdec">≈ ${esc(dec(t.w, 6))}</div>
+      </div>
+    </div>
+    <div class="modeline">ŷ(x) = ${t.b.sign() < 0 ? '− ' + esc(frac(t.b.neg())) : esc(frac(t.b))} ${t.w.sign() < 0 ? '−' : '+'} ${esc(frac(t.w.abs()))}·x</div>
+    <div class="pillnote">Rank ${state.rank} of 2 · fitted on ${activePremises().length} premise${activePremises().length === 1 ? '' : 's'}</div>
+    ${state.singular ? `<div class="warnbox"><b>Underdetermined.</b> The remaining premises do not pin down both weights, so the free direction is held at zero. Both the retraction path and the fresh fit use the same deterministic rule, so the check is still exact.</div>` : ''}
+    ${state.receipt ? `<div class="pillnote">Before retracting <b>${esc(state.receipt.name)}</b>: b = ${esc(frac(state.receipt.thetaBefore.b))}, w = ${esc(frac(state.receipt.thetaBefore.w))}</div>` : ''}
+  `;
+}
+
+function renderStats() {
+  const s = state.stats;
+  const terms = gradientTerms(activePremises(), state.theta);
+  const g = gradientSum(terms);
+  const zero = g.g0.isZero() && g.g1.isZero();
+  $('#stats').innerHTML = `
+    <div class="kv">
+      <span class="k">A</span>
+      <span class="v matrix bracket">
+        <span>${esc(s.A[0][0].toString())}</span><span>${esc(s.A[0][1].toString())}</span>
+        <span>${esc(s.A[1][0].toString())}</span><span>${esc(s.A[1][1].toString())}</span>
+      </span>
+      <span class="k">q</span>
+      <span class="v matrix bracket"><span>${esc(s.q[0].toString())}</span><span>${esc(s.q[1].toString())}</span></span>
+      <span class="k">Σ grad</span>
+      <span class="v">${zero ? '<span class="tag on">0, 0</span>' : esc(frac(g.g0)) + ', ' + esc(frac(g.g1))}</span>
+    </div>
+    <p class="hint">A and q are the running totals. Every premise adds exactly one 2×2 block and one 2-vector; nothing is stored twice. The weights are the solution of <span class="mono">A θ = q</span>.</p>
+  `;
+}
+
+function renderPreds() {
+  const hasModel = state.theta && activePremises().length > 0;
+  const rows = GRID.concat(state.queries).map((x) => {
+    const now = hasModel ? predict(state.theta, x) : null;
+    const before = state.receipt ? state.receipt.predsBefore[x] : null;
+    const delta = now && before ? now.sub(before) : null;
+    return `<tr>
+      <td class="num">${esc(x)}</td>
+      <td class="num" title="${now ? esc(frac(now)) : ''}">${now ? esc(dec(now, 4)) : '—'}</td>
+      <td class="num" title="${delta ? esc(frac(delta)) : ''}">${delta ? (delta.isZero() ? '0' : esc(dec(delta, 4))) : '—'}</td>
+    </tr>`;
+  }).join('');
+  $('#predsBody').innerHTML = rows;
+  $('#predsMeta').textContent = state.receipt ? `Δ vs before retracting ${state.receipt.name}` : 'Δ vs previous retraction';
+}
+
+function renderCheckList() {
+  const el = $('#checkList');
+  const c = state.check;
+  if (!c) {
+    el.innerHTML = `<div class="empty">The check runs automatically the moment you retract a premise.</div>`;
+    return;
+  }
+  el.innerHTML = `<ul class="checklist">${c.checks.map((k) => `
+    <li>
+      <span class="tick ${k.pass ? 'ok' : 'no'}">${k.pass ? '✓' : '✕'}</span>
+      <span class="cm">${esc(k.name)}<span class="cd">${esc(k.detail)}</span></span>
+    </li>`).join('')}</ul>`;
+}
+
+function renderSweep() {
+  const el = $('#sweepOut');
+  const s = state.sweep;
+  if (!s) {
+    el.innerHTML = `<p class="hint">Retract each active premise in turn, from the current totals, and check every case against its own fresh fit.</p>`;
+    return;
+  }
+  if (s.error) { el.innerHTML = `<p class="hint">${esc(s.error)}</p>`; return; }
+  const all = s.rows.every((r) => r.pass);
+  el.innerHTML = `
+    <table>
+      <thead><tr><th>retract</th><th class="num">weights after</th><th class="num">checks</th><th class="num">result</th></tr></thead>
+      <tbody>${s.rows.map((r) => `
+        <tr>
+          <td>${esc(r.name)}</td>
+          <td class="num">b ${esc(r.b)} · w ${esc(r.w)}</td>
+          <td class="num">${r.n}/${r.total}</td>
+          <td class="num">${r.pass ? '<span class="tag on">exact</span>' : '<span class="tag off">fail</span>'}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+    <p class="hint">${all ? `All ${s.rows.length} single-premise retractions are exact.` : 'At least one case failed.'} This is the same code path the Retract button uses.</p>`;
+}
+
+function renderContrast() {
+  const el = $('#contrastOut');
+  const c = state.contrast;
+  if (!c) {
+    el.innerHTML = `<p class="hint">Run it to see what an order-dependent learner does when you take a premise away.</p>`;
+    return;
+  }
+  if (c.error) { el.innerHTML = `<p class="hint">${esc(c.error)}</p>`; return; }
+  el.innerHTML = `
+    <table>
+      <thead><tr><th>retract</th><th class="num">naive undo (b, w)</th><th class="num">fresh SGD (b, w)</th><th class="num">gap</th></tr></thead>
+      <tbody>${c.rows.map((r) => `
+        <tr>
+          <td>${esc(r.name)}</td>
+          <td class="num">${r.naive.b.toFixed(4)}, ${r.naive.w.toFixed(4)}</td>
+          <td class="num">${r.fresh.b.toFixed(4)}, ${r.fresh.w.toFixed(4)}</td>
+          <td class="num">${r.diff === 0 ? '0' : r.diff.toExponential(2)}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+    <p class="hint">Worst gap <span class="mono">${c.worst.toExponential(2)}</span>. These are not rounding dust: each recorded step was computed from the weights that earlier premises had already moved, so subtracting one step does not reproduce the model trained on the rest. The exact model above avoids the problem by never iterating.</p>`;
+}
+
+function renderLog() {
+  $('#log').innerHTML = state.log.length
+    ? state.log.map((e) => `
+      <div class="logrow">
+        <span class="t">${e.t.toLocaleTimeString([], { hour12: false })}</span>
+        <span class="k ${e.kind}">${esc(e.kind)}</span>
+        <span class="m">${e.msg}</span>
+        ${e.detail ? `<span class="d">${esc(e.detail)}</span>` : ''}
+      </div>`).join('')
+    : `<div class="empty">Events appear here as you work.</div>`;
+}
+
+/* ---------------- chart ---------------- */
+
+function niceDomain(vals, padFrac, fallback) {
+  let lo = Math.min(...vals), hi = Math.max(...vals);
+  if (!isFinite(lo) || !isFinite(hi)) { lo = fallback[0]; hi = fallback[1]; }
+  if (hi - lo < 1e-9) { lo -= 1; hi += 1; }
+  const pad = (hi - lo) * padFrac;
+  return [lo - pad, hi + pad];
+}
+
+function renderChart() {
+  const el = $('#chart');
+  const ps = state.premises;
+  if (!ps.length) {
+    el.innerHTML = `<text x="350" y="180" text-anchor="middle" class="ax-txt">no premises to plot</text>`;
+    return;
+  }
+  const W = 700, H = 380, M = { t: 18, r: 20, b: 34, l: 48 };
+  const iw = W - M.l - M.r, ih = H - M.t - M.b;
+
+  const xsData = ps.map((p) => fx(p.x));
+  const [x0, x1] = niceDomain(xsData, 0.22, [-1, 4]);
+
+  const ysData = ps.map((p) => fx(p.y));
+  const preds = [];
+  if (state.theta) for (const x of [x0, x1]) preds.push(predict(state.theta, x).toNumber());
+  if (state.receipt && state.receipt.thetaBefore) {
+    for (const x of [x0, x1]) preds.push(predict(state.receipt.thetaBefore, x).toNumber());
+  }
+  const [y0, y1] = niceDomain(ysData.concat(preds), 0.14, [0, 6]);
+
+  const px = (x) => M.l + ((x - x0) / (x1 - x0)) * iw;
+  const py = (y) => M.t + ih - ((y - y0) / (y1 - y0)) * ih;
+
+  const nT = 5;
+  let grid = '';
+  for (let i = 0; i < nT; i++) {
+    const yv = y0 + ((y1 - y0) * i) / (nT - 1);
+    grid += `<line class="ax-grid" x1="${M.l}" y1="${py(yv).toFixed(1)}" x2="${W - M.r}" y2="${py(yv).toFixed(1)}"/>`;
+    grid += `<text class="ax-txt" x="${M.l - 8}" y="${(py(yv) + 3).toFixed(1)}" text-anchor="end">${yv.toFixed(1)}</text>`;
+  }
+  const nX = 6;
+  for (let i = 0; i < nX; i++) {
+    const xv = x0 + ((x1 - x0) * i) / (nX - 1);
+    grid += `<text class="ax-txt" x="${px(xv).toFixed(1)}" y="${H - M.b + 16}" text-anchor="middle">${xv.toFixed(1)}</text>`;
+  }
+  const zeroIn = y0 <= 0 && y1 >= 0;
+  const axes = zeroIn
+    ? `<line class="ax-zero" x1="${M.l}" y1="${py(0).toFixed(1)}" x2="${W - M.r}" y2="${py(0).toFixed(1)}"/>`
+    : '';
+
+  let lines = '';
+  if (state.receipt && state.receipt.thetaBefore) {
+    const tb = state.receipt.thetaBefore;
+    lines += `<line class="fit-ghost" x1="${px(x0)}" y1="${py(tb.b.add(tb.w.mul(R.parse(String(x0)))).toNumber())}" x2="${px(x1)}" y2="${py(tb.b.add(tb.w.mul(R.parse(String(x1)))).toNumber())}"/>`;
+  }
+  if (state.theta) {
+    const b = state.theta.b.toNumber(), w = state.theta.w.toNumber();
+    lines += `<line class="fit-line" x1="${px(x0)}" y1="${py(b + w * x0)}" x2="${px(x1)}" y2="${py(b + w * x1)}"/>`;
+  }
+
+  let resid = '';
+  let pts = '';
+  for (const p of ps) {
+    const xv = fx(p.x), yv = fx(p.y);
+    const cx = px(xv), cy = py(yv);
+    if (p.active && state.theta) {
+      const yhat = predict(state.theta, p.x).toNumber();
+      resid += `<line class="resid" x1="${cx}" y1="${cy}" x2="${cx}" y2="${py(yhat)}"/>`;
+    }
+    pts += `<circle class="${p.active ? 'pt' : 'pt-retracted'}" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="6">
+      <title>${esc(p.name)} — x ${esc(p.x)}, y ${esc(p.y)}${p.active ? '' : ' (retracted)'}</title></circle>`;
+    const lx = Math.min(cx + 10, W - M.r - 4);
+    const ly = cy - 10 < M.t + 10 ? cy + 18 : cy - 10;
+    pts += `<text class="${p.active ? 'plabel' : 'plabel-retracted'}" x="${lx.toFixed(1)}" y="${ly.toFixed(1)}">${esc(p.name)}</text>`;
+  }
+
+  el.innerHTML = `
+    <rect x="${M.l}" y="${M.t}" width="${iw}" height="${ih}" fill="none" stroke="#efeade"/>
+    ${grid}${axes}
+    ${lines}${resid}${pts}
+    <text class="ax-txt" x="${M.l}" y="${M.t - 6}">ŷ = b + w·x</text>`;
+}
+
+function renderAll() {
+  renderBanner();
+  renderLedger();
+  renderWeights();
+  renderStats();
+  renderPreds();
+  renderCheckList();
+  renderSweep();
+  renderContrast();
+  renderLog();
+  renderChart();
+  $('#chipCount').textContent = `${activePremises().length} active`;
+  $('#chipCount').className = 'chip' + (activePremises().length ? ' on' : '');
+  $('#chipExact').textContent = state.check ? (state.check.pass ? 'exact' : 'inexact') : 'unchecked';
+  $('#chipExact').className = 'chip' + (state.check ? (state.check.pass ? ' on' : '') : '');
+  $('#btnCheck').disabled = !state.receipt;
+}
+function render() { renderAll(); }
+
+/* ---------------- demo ---------------- */
+
+let demoRunning = false;
+async function runDemo() {
+  if (demoRunning || state.busy) return;
+  demoRunning = true; state.busy = true;
+  setBusy(true);
+  resetAll(true);
+  log('demo', 'Demo started', 'three premises, then retract the middle one');
+  renderAll();
+  await sleep(300);
+
+  const seeds = [
+    { name: 'reading-A', x: '1', y: '3' },
+    { name: 'reading-B', x: '2', y: '5' },
+    { name: 'reading-C', x: '3', y: '4' },
+  ];
+  for (const s of seeds) {
+    addPremise(s);
+    renderAll();
+    await sleep(520);
+  }
+  log('train', `Solved on ${activePremises().length} premises`, `b = ${frac(state.theta.b)}, w = ${frac(state.theta.w)}`);
+  renderAll();
+  await sleep(620);
+
+  const middle = state.premises[1];
+  retract(middle.id);
+  renderAll();
+  await sleep(400);
+
+  const c = state.check;
+  log('demo', `Demo complete — exactness ${c && c.pass ? 'PASS' : 'FAIL'}`,
+    c ? `${c.checks.filter((k) => k.pass).length}/${c.checks.length} checks against a fresh fit on ${activePremises().length} premises` : 'no check');
+  renderAll();
+  demoRunning = false; state.busy = false;
+  setBusy(false);
+}
+
+function setBusy(b) {
+  $$('.btn[data-needs-idle]').forEach((el) => { el.disabled = b; });
+}
+
+/* ---------------- export ---------------- */
+
+function downloadReceipt() {
+  const payload = {
+    app: 'premise-retraction-playground',
+    generated_at: new Date().toISOString(),
+    arithmetic: 'exact rationals (BigInt numerator/denominator); no floating point in model or check',
+    premises: state.premises.map((p) => {
+      const c = contributionOf(p);
+      return {
+        id: p.id, name: p.name, x: p.x, y: p.y, weight: p.weight, active: p.active,
+        contribution: {
+          A: c.A.map((r) => r.map(String)),
+          q: c.q.map(String),
+        },
+      };
+    }),
+    totals: {
+      A: state.stats.A.map((r) => r.map(String)),
+      q: state.stats.q.map(String),
+    },
+    weights: state.theta ? { b: state.theta.b.toString(), w: state.theta.w.toString() } : null,
+    rank: state.rank,
+    last_retraction: state.receipt
+      ? {
+        premise: state.receipt.name,
+        at: state.receipt.at.toISOString(),
+        weights_before: { b: state.receipt.thetaBefore.b.toString(), w: state.receipt.thetaBefore.w.toString() },
+        contribution: {
+          A: state.receipt.contribution.A.map((r) => r.map(String)),
+          q: state.receipt.contribution.q.map(String),
+        },
+      }
+      : null,
+    exactness_check: state.check
+      ? {
+        pass: state.check.pass,
+        checks: state.check.checks.map((k) => ({ name: k.name, pass: k.pass, detail: k.detail })),
+        fresh_weights: {
+          b: state.check.fresh.theta.b.toString(),
+          w: state.check.fresh.theta.w.toString(),
+        },
+      }
+      : null,
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'premise-retraction-receipt.json';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  log('export', 'Downloaded a receipt', 'premises, contributions, weights, check results as exact fractions');
+  renderAll();
+}
+
+/* ---------------- events ---------------- */
+
+function bind() {
+  $('#addForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    try {
+      addPremise({
+        name: fd.get('name'),
+        x: fd.get('x'),
+        y: fd.get('y'),
+        weight: fd.get('weight'),
+      });
+      $('#formErr').textContent = '';
+      e.target.reset();
+      renderAll();
+    } catch (err) {
+      $('#formErr').textContent = err.message;
+    }
+  });
+
+  document.addEventListener('click', (e) => {
+    const t = e.target.closest('[data-retract],[data-restore],[data-toggle]');
+    if (!t) return;
+    if (t.dataset.retract) { retract(t.dataset.retract); renderAll(); }
+    else if (t.dataset.restore) { restore(t.dataset.restore); renderAll(); }
+    else if (t.dataset.toggle) {
+      const id = t.dataset.toggle;
+      if (state.expanded.has(id)) state.expanded.delete(id); else state.expanded.add(id);
+      renderAll();
+    }
+  });
+
+  $('#btnDemo').addEventListener('click', runDemo);
+  $('#btnReset').addEventListener('click', () => { resetAll(false); });
+  $('#btnCheck').addEventListener('click', () => {
+    state.check = runCheck();
+    if (state.check) {
+      log('check', state.check.pass ? 'Manual exactness check: PASS' : 'Manual exactness check: FAIL',
+        `${state.check.checks.filter((c) => c.pass).length}/${state.check.checks.length} checks`);
+    }
+    renderAll();
+  });
+  $('#btnTrain').addEventListener('click', () => {
+    retrain();
+    log('train', `Re-solved the normal equations from the running totals`,
+      state.theta ? `b = ${frac(state.theta.b)}, w = ${frac(state.theta.w)} on ${activePremises().length} premises` : 'no premises');
+    state.check = state.receipt ? runCheck() : null;
+    renderAll();
+  });
+
+  $('#qForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const raw = new FormData(e.target).get('qx');
+    try {
+      const r = R.parse(raw);
+      const known = GRID.concat(state.queries).some((g) => R.of(g).eq(r));
+      if (!known) {
+        state.queries.push(r.toString());
+        log('predict', `Added query point x = ${r.toString()}`, 'evaluated exactly, and included in the check');
+      }
+      $('#qErr').textContent = '';
+      e.target.reset();
+      state.check = state.receipt ? runCheck() : null;
+      renderAll();
+    } catch (err) {
+      $('#qErr').textContent = err.message;
+    }
+  });
+
+  $('#btnSweep').addEventListener('click', runSweep);
+  $('#btnContrast').addEventListener('click', () => { state.contrast = floatContrast(); renderAll(); });
+  $('#btnExport').addEventListener('click', downloadReceipt);
+}
+
+/* ---------------- init ---------------- */
+
+bind();
+resetAll(true);
+log('boot', 'Model ready', 'exact rational arithmetic; nothing trained yet');
+renderAll();
+
+</script>
+</body>
+</html>
