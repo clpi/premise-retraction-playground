@@ -254,6 +254,20 @@ details.docs pre{background:#f3f0e7;border:1px solid var(--line2);border-radius:
 }
 .chip.on{color:var(--pass);border-color:var(--pass-line);background:var(--pass-bg)}
 
+/* ---------- two-input additions ---------- */
+.form.wide{grid-template-columns:1.15fr .7fr .7fr .7fr .55fr auto}
+@media (max-width:1500px){.form.wide{grid-template-columns:1fr 1fr 1fr}}
+@media (max-width:520px){.form.wide{grid-template-columns:1fr 1fr}}
+.matrix.m3{grid-template-columns:repeat(3,auto)}
+.wgrid.three{grid-template-columns:repeat(3,1fr);gap:8px}
+.wgrid.three .wcell{padding:8px 9px}
+.wgrid.three .wval{font-size:16px}
+.wgrid.three .wlabel{font-size:9px}
+.iso-line{stroke:#6f8fae;stroke-width:1.15;fill:none;opacity:.75}
+.iso-line.ghost{stroke:#b9c4cf;stroke-dasharray:4 4;stroke-width:1.1;opacity:.9}
+.iso-label{fill:#7d90a3;font-family:var(--mono);font-size:8.5px}
+.ledger td,.ledger th{padding-left:8px;padding-right:8px}
+
 </style>
 </head>
 <body>
@@ -263,7 +277,7 @@ details.docs pre{background:#f3f0e7;border:1px solid var(--line2);border-radius:
     <div class="titleblock">
       <div class="kicker">Idol · learning that can be taken back</div>
       <h1>Premise Retraction Playground</h1>
-      <p class="sub">Every training example is a named premise that contributes one exact, removable term to the model. Retract a premise and the weights become exactly the weights of a model trained only on the rest — checked automatically, never approximated.</p>
+      <p class="sub">Two input dimensions, three weights, and every training example a named premise that contributes one exact, removable term. Retract a premise and the weights become exactly the weights of a model trained only on the rest — checked automatically, never approximated.</p>
     </div>
     <div class="actions">
       <span id="chipCount" class="chip">0 active</span>
@@ -292,7 +306,7 @@ details.docs pre{background:#f3f0e7;border:1px solid var(--line2);border-radius:
         <div class="pb tight">
           <table class="ledger">
             <thead><tr>
-              <th>premise</th><th class="num">x</th><th class="num">y</th><th class="num">w</th><th>state</th><th></th>
+              <th>premise</th><th class="num">x₁</th><th class="num">x₂</th><th class="num">y</th><th class="num">w</th><th>state</th><th></th>
             </tr></thead>
             <tbody id="ledgerBody"></tbody>
           </table>
@@ -302,9 +316,10 @@ details.docs pre{background:#f3f0e7;border:1px solid var(--line2);border-radius:
       <section class="panel">
         <div class="ph"><h2>Add a premise</h2><span class="meta">exact input</span></div>
         <div class="pb">
-          <form id="addForm" class="form" autocomplete="off">
+          <form id="addForm" class="form wide" autocomplete="off">
             <div><label for="f-name">name</label><input id="f-name" name="name" placeholder="optional"></div>
-            <div><label for="f-x">x</label><input id="f-x" name="x" placeholder="2" required></div>
+            <div><label for="f-x1">x₁</label><input id="f-x1" name="x1" placeholder="2" required></div>
+            <div><label for="f-x2">x₂</label><input id="f-x2" name="x2" placeholder="1.5" required></div>
             <div><label for="f-y">y</label><input id="f-y" name="y" placeholder="5" required></div>
             <div><label for="f-w">weight</label><input id="f-w" name="weight" placeholder="1"></div>
             <div><button class="btn primary" type="submit">Add</button></div>
@@ -325,14 +340,15 @@ details.docs pre{background:#f3f0e7;border:1px solid var(--line2);border-radius:
     <!-- ============ middle column ============ -->
     <div class="col-main">
       <section class="panel">
-        <div class="ph"><h2>Fit</h2><span class="meta">solid now · dashed before retraction</span></div>
+        <div class="ph"><h2>Plane over (x₁, x₂)</h2><span class="meta">solid: now · dashed: before retraction</span></div>
         <div class="pb tight">
           <svg id="chart" viewBox="0 0 700 380" role="img" aria-label="Premises plotted against the fitted line"></svg>
           <div class="legend" style="padding:0 14px 10px">
             <span><i style="background:#14463a"></i>active premise</span>
             <span><i style="background:#fffdf8;border:1.5px dashed #a03218"></i>retracted premise</span>
-            <span><i style="background:transparent;border-top:2.5px solid #14463a;border-radius:0;height:0;width:14px"></i>fit now</span>
-            <span><i style="background:transparent;border-top:2px dashed #a9b8b0;border-radius:0;height:0;width:14px"></i>fit before retraction</span>
+            <span><i style="background:transparent;border-top:2px solid #6f8fae;border-radius:0;height:0;width:14px"></i>iso-lines of ŷ (now)</span>
+            <span><i style="background:transparent;border-top:2px dashed #b9c4cf;border-radius:0;height:0;width:14px"></i>iso-lines before retraction</span>
+            <span class="muted">r = residual at the current weights</span>
           </div>
         </div>
       </section>
@@ -346,11 +362,12 @@ details.docs pre{background:#f3f0e7;border:1px solid var(--line2);border-radius:
         <div class="ph"><h2>Predictions</h2><span class="meta" id="predsMeta">—</span></div>
         <div class="pb tight">
           <table>
-            <thead><tr><th class="num">x</th><th class="num">ŷ now</th><th class="num">Δ</th></tr></thead>
+            <thead><tr><th class="num">x₁</th><th class="num">x₂</th><th class="num">ŷ now</th><th class="num">Δ</th></tr></thead>
             <tbody id="predsBody"></tbody>
           </table>
-          <form id="qForm" class="form" style="grid-template-columns:1fr auto;padding:10px 14px 4px" autocomplete="off">
-            <div><label for="f-qx">evaluate at x</label><input id="f-qx" name="qx" placeholder="2.5 or 7/3"></div>
+          <form id="qForm" class="form" style="grid-template-columns:1fr 1fr auto;padding:10px 14px 4px" autocomplete="off">
+            <div><label for="f-q1">evaluate at x₁</label><input id="f-q1" name="q1" placeholder="2.5" required></div>
+            <div><label for="f-q2">x₂</label><input id="f-q2" name="q2" placeholder="7/3" required></div>
             <div><button class="btn tiny" type="submit">Predict</button></div>
           </form>
           <div id="qErr" class="formerr" style="padding:0 14px"></div>
@@ -404,11 +421,11 @@ details.docs pre{background:#f3f0e7;border:1px solid var(--line2);border-radius:
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:22px">
         <div>
           <h3 style="font-family:var(--serif);font-size:14px;margin:0 0 4px">1 · The model</h3>
-          <p class="small" style="color:var(--ink2);margin:0">One input <span class="mono">x</span>, one output <span class="mono">y</span>, two weights: bias <span class="mono">b</span> and slope <span class="mono">w</span>, with <span class="mono">ŷ(x) = b + w·x</span>. The objective is least squares, <span class="mono">L = Σᵢ cᵢ(ŷ(xᵢ) − yᵢ)²</span>. Zeroing the derivative gives <span class="mono">Aθ = q</span>, where <span class="mono">A = Σᵢ cᵢx̃ᵢx̃ᵢᵀ</span> and <span class="mono">q = Σᵢ cᵢyᵢx̃ᵢ</span>, with <span class="mono">x̃ᵢ = (1, xᵢ)</span>. The weights are therefore a function of a <em>sum of per-premise terms</em> — nothing else.</p>
+          <p class="small" style="color:var(--ink2);margin:0">Two inputs <span class="mono">x₁, x₂</span>, one output <span class="mono">y</span>, three weights: bias <span class="mono">b</span> and slopes <span class="mono">w₁, w₂</span>, with <span class="mono">ŷ = b + w₁x₁ + w₂x₂</span>. The objective is least squares, <span class="mono">L = Σᵢ cᵢ(ŷ(xᵢ) − yᵢ)²</span>. Zeroing the gradient gives <span class="mono">Aθ = q</span>, where <span class="mono">A = Σᵢ cᵢx̃ᵢx̃ᵢᵀ</span> and <span class="mono">q = Σᵢ cᵢyᵢx̃ᵢ</span>, with <span class="mono">x̃ᵢ = (1, x₁ᵢ, x₂ᵢ)</span>. The weights are therefore a function of a <em>sum of per-premise terms</em> — nothing else.</p>
         </div>
         <div>
           <h3 style="font-family:var(--serif);font-size:14px;margin:0 0 4px">2 · The retraction mechanism</h3>
-          <p class="small" style="color:var(--ink2);margin:0">Each premise stores exactly its own 2×2 block <span class="mono">Aᵢ</span> and its own 2-vector <span class="mono">qᵢ</span> — open a ledger row to see them. Adding a premise adds its block to the running totals; retracting it subtracts that block and nothing else, then re-solves. Restore adds it back. There is no replay, no re-shuffle, no retraining job.</p>
+          <p class="small" style="color:var(--ink2);margin:0">Each premise stores exactly its own 3×3 block <span class="mono">Aᵢ</span> and its own 3-vector <span class="mono">qᵢ</span> — open a ledger row to see them. Adding a premise adds its block to the running totals; retracting it subtracts that block and nothing else, then re-solves. Restore adds it back. There is no replay, no re-shuffle, no retraining job.</p>
         </div>
         <div>
           <h3 style="font-family:var(--serif);font-size:14px;margin:0 0 4px">3 · Why the check cannot fail</h3>
@@ -416,7 +433,7 @@ details.docs pre{background:#f3f0e7;border:1px solid var(--line2);border-radius:
         </div>
         <div>
           <h3 style="font-family:var(--serif);font-size:14px;margin:0 0 4px">4 · What is real, what is illustrative</h3>
-          <p class="small" style="color:var(--ink2);margin:0">Everything in the panels is computed live in your browser: real rational arithmetic, a real closed-form solve, a real check. Nothing is replayed from a recording. The demo premises (readings A, B, C) are arbitrary teaching data, not measurements of anything. Scope is two weights on purpose: the claim being demonstrated is the accounting, not the capacity.</p>
+          <p class="small" style="color:var(--ink2);margin:0">Everything in the panels is computed live in your browser: real rational arithmetic, a real closed-form solve, a real check. Nothing is replayed from a recording. The demo premises (readings A–E) are arbitrary teaching data, not measurements of anything. Scope is two weights on purpose: the claim being demonstrated is the accounting, not the capacity.</p>
         </div>
       </div>
     </div>
@@ -430,9 +447,14 @@ details.docs pre{background:#f3f0e7;border:1px solid var(--line2);border-radius:
 
 <script>
 /* ============================================================
-   CORE — exact rational linear algebra for the premise model.
+   CORE — exact rational least squares over NF input features.
+   Model:  yhat(x) = b + SUM_j w_j * x_j        (NF = 2)
    No floating point anywhere in the model or the check.
    ============================================================ */
+
+const NF = 2;               // input features
+const DIM = NF + 1;         // + bias
+const FEATURE_NAMES = ['x1', 'x2'];
 
 function bgcd(a, b) {
   a = a < 0n ? -a : a;
@@ -503,6 +525,9 @@ class R {
 }
 
 const R0 = () => new R(0n);
+const R1 = () => new R(1n);
+const vec = (n, f = R0) => new Array(n).fill(0).map(() => f());
+const mat = (n, f = R0) => vec(n).map(() => vec(n, f));
 
 /* ---------- exact linear solve (Gaussian elimination over Q) ---------- */
 function solveLinear(A, b) {
@@ -530,67 +555,64 @@ function solveLinear(A, b) {
       return { ok: false, inconsistent: true, rank: r };
     }
   }
-  const x = new Array(n).fill(0).map(R0);
+  const x = vec(n);
   pivotCols.forEach((c, i) => { x[c] = M[i][n]; });
   return { ok: true, x, rank: r, singular: r < n, pivotCols };
 }
 
 /* ---------- sufficient statistics ----------
-   For the model  yhat(x) = b + w*x  the least-squares objective is
-
-       L(theta) = SUM_i c_i * (theta . (1, x_i) - y_i)^2
-
-   Each premise contributes a 2x2 matrix A_i and a vector q_i, and the
-   normal equations are  (SUM_i A_i) theta = (SUM_i q_i).
-   The statistics are therefore an exact, additive sum over premises.
+   L(theta) = SUM_i c_i * (theta . xtilde_i - y_i)^2
+   A = SUM_i c_i xtilde_i xtilde_i^T ,  q = SUM_i c_i y_i xtilde_i
+   with xtilde_i = (1, x1_i, x2_i).  Additive over premises, exactly.
 */
-const ZERO_STATS = () => ({
-  A: [[R0(), R0()], [R0(), R0()]],
-  q: [R0(), R0()],
-});
+const ZERO_STATS = () => ({ A: mat(DIM), q: vec(DIM) });
 
 function statsAdd(s, t) {
   return {
-    A: [
-      [s.A[0][0].add(t.A[0][0]), s.A[0][1].add(t.A[0][1])],
-      [s.A[1][0].add(t.A[1][0]), s.A[1][1].add(t.A[1][1])],
-    ],
-    q: [s.q[0].add(t.q[0]), s.q[1].add(t.q[1])],
+    A: s.A.map((row, i) => row.map((v, j) => v.add(t.A[i][j]))),
+    q: s.q.map((v, i) => v.add(t.q[i])),
   };
 }
 
 function statsSub(s, t) {
   return {
-    A: [
-      [s.A[0][0].sub(t.A[0][0]), s.A[0][1].sub(t.A[0][1])],
-      [s.A[1][0].sub(t.A[1][0]), s.A[1][1].sub(t.A[1][1])],
-    ],
-    q: [s.q[0].sub(t.q[0]), s.q[1].sub(t.q[1])],
+    A: s.A.map((row, i) => row.map((v, j) => v.sub(t.A[i][j]))),
+    q: s.q.map((v, i) => v.sub(t.q[i])),
   };
 }
 
 function statsEq(s, t) {
-  return s.A[0][0].eq(t.A[0][0]) && s.A[0][1].eq(t.A[0][1]) &&
-    s.A[1][0].eq(t.A[1][0]) && s.A[1][1].eq(t.A[1][1]) &&
-    s.q[0].eq(t.q[0]) && s.q[1].eq(t.q[1]);
+  for (let i = 0; i < DIM; i++) {
+    if (!s.q[i].eq(t.q[i])) return false;
+    for (let j = 0; j < DIM; j++) if (!s.A[i][j].eq(t.A[i][j])) return false;
+  }
+  return true;
 }
 
 function statsJSON(s) {
-  return [s.A[0][0], s.A[0][1], s.A[1][0], s.A[1][1], s.q[0], s.q[1]]
-    .map((v) => v.toString()).join('|');
+  const flat = [];
+  for (let i = 0; i < DIM; i++) for (let j = 0; j < DIM; j++) flat.push(s.A[i][j].toString());
+  for (let i = 0; i < DIM; i++) flat.push(s.q[i].toString());
+  return flat.join('|');
 }
 
 /* ---------- one premise -> its exact contribution ---------- */
+function featuresOf(p) {
+  return [R.of(p.x1), R.of(p.x2)];
+}
+
+function xtilde(p) {
+  return [R1()].concat(featuresOf(p));
+}
+
 function contributionOf(p) {
   const c = R.of(p.weight);
-  const x = R.of(p.x);
   const y = R.of(p.y);
-  const cx = c.mul(x);
-  const cy = c.mul(y);
-  return {
-    A: [[c, cx], [cx, cx.mul(x)]],
-    q: [cy, cy.mul(x)],
-  };
+  const xt = xtilde(p);
+  const A = mat(DIM);
+  for (let i = 0; i < DIM; i++) for (let j = 0; j < DIM; j++) A[i][j] = c.mul(xt[i]).mul(xt[j]);
+  const q = xt.map((v) => c.mul(y).mul(v));
+  return { A, q };
 }
 
 function sumStats(premises) {
@@ -605,7 +627,7 @@ function solveStats(stats) {
   if (!res.ok) return { ok: false, theta: null, reason: 'inconsistent system' };
   return {
     ok: true,
-    theta: { b: res.x[0], w: res.x[1] },
+    theta: { b: res.x[0], w: res.x.slice(1) },
     rank: res.rank,
     singular: res.singular,
   };
@@ -624,36 +646,41 @@ function trainModel(premises) {
   };
 }
 
-function predict(theta, x) {
+function predict(theta, xs) {
   if (!theta) return null;
-  return theta.b.add(theta.w.mul(R.of(x)));
+  let acc = theta.b;
+  for (let j = 0; j < NF; j++) acc = acc.add(theta.w[j].mul(R.of(xs[j])));
+  return acc;
 }
 
-/* per-premise gradient term at theta: 2 c (theta.x - y) (1, x) */
+function predictAt(p, theta) {
+  return predict(theta, [p.x1, p.x2]);
+}
+
+/* per-premise gradient term at theta: 2 c (theta.xtilde - y) xtilde */
 function gradientTerms(premises, theta) {
   if (!theta) return [];
   return premises.map((p) => {
-    const x = R.of(p.x);
+    const xt = xtilde(p);
     const c = R.of(p.weight);
-    const err = theta.b.add(theta.w.mul(x)).sub(R.of(p.y));
+    const err = predict(theta, [p.x1, p.x2]).sub(R.of(p.y));
     const e = c.mul(err);
-    return { id: p.id, err, g0: e, g1: e.mul(x), sq: c.mul(err).mul(err) };
+    return { id: p.id, err, g: xt.map((v) => e.mul(v)) };
   });
 }
 
 function gradientSum(terms) {
-  let g0 = R0(), g1 = R0();
-  for (const t of terms) { g0 = g0.add(t.g0); g1 = g1.add(t.g1); }
-  return { g0, g1 };
+  let g = vec(DIM);
+  for (const t of terms) g = g.map((v, i) => v.add(t.g[i]));
+  return g;
 }
 
 /* ---------- the exactness check ----------
-   Two genuinely different paths:
-     ACTUAL : the running totals that were maintained incrementally, with the
-              retracted premise's contribution SUBTRACTED out.
-     FRESH  : totals rebuilt by SUMMING only the remaining premises from zero.
-   In exact arithmetic they must agree by construction. Nothing is compared
-   approximately and nothing is skipped.
+   ACTUAL : running totals maintained incrementally, with the retracted
+            premise's contribution SUBTRACTED out.
+   FRESH  : totals rebuilt by SUMMING only the remaining premises from zero.
+   Exact arithmetic makes these identical by construction. Nothing is
+   compared approximately and nothing is skipped.
 */
 function exactnessCheck({ actualStats, activePremises, theta, retractedIds, grid, retractionReceipt }) {
   const fresh = trainModel(activePremises);
@@ -666,23 +693,26 @@ function exactnessCheck({ actualStats, activePremises, theta, retractedIds, grid
       ? 'A and q agree term for term'
       : 'A/q differ: ' + statsJSON(actualStats) + ' vs ' + statsJSON(fresh.stats));
 
-  const wEq = !!theta && !!fresh.theta &&
-    theta.b.eq(fresh.theta.b) && theta.w.eq(fresh.theta.w);
+  const wEq = !!theta && !!fresh.theta && theta.b.eq(fresh.theta.b) &&
+    theta.w.every((v, j) => v.eq(fresh.theta.w[j]));
   add('post-retraction weights are exactly the fresh weights', wEq,
     theta && fresh.theta
-      ? 'b = ' + theta.b + ' vs ' + fresh.theta.b + ' ; w = ' + theta.w + ' vs ' + fresh.theta.w
+      ? 'b = ' + theta.b + ' vs ' + fresh.theta.b + ' ; w = (' + theta.w.map(String).join(', ') + ') vs (' + fresh.theta.w.map(String).join(', ') + ')'
       : 'no weights to compare');
 
-  // predictions on the grid and on every remaining premise
   const pts = [];
-  for (const x of grid) pts.push(R.of(x));
-  for (const p of activePremises) pts.push(R.of(p.x));
+  for (const pair of grid) pts.push(pair.map(String));
+  for (const p of activePremises) pts.push([p.x1, p.x2]);
   let predsOk = true;
   let worst = '';
-  for (const x of pts) {
-    const a = predict(theta, x);
-    const b2 = predict(fresh.theta, x);
-    if (!a || !b2 || !a.eq(b2)) { predsOk = false; worst = 'first mismatch at x = ' + x; break; }
+  for (const pair of pts) {
+    const a = predict(theta, pair);
+    const b2 = predict(fresh.theta, pair);
+    if (!a || !b2 || !a.eq(b2)) {
+      predsOk = false;
+      worst = 'first mismatch at (' + pair.join(', ') + ')';
+      break;
+    }
   }
   add('every prediction matches the fresh model', predsOk,
     predsOk ? pts.length + ' predictions compared as exact rationals' : worst);
@@ -691,29 +721,25 @@ function exactnessCheck({ actualStats, activePremises, theta, retractedIds, grid
     const back = statsAdd(actualStats, retractionReceipt.contribution);
     const undoOk = statsEq(back, retractionReceipt.statsBefore);
     add('adding the retracted contribution back restores the previous totals', undoOk,
-      undoOk ? 'A + q of the retracted premise reproduce the pre-retraction state exactly' : 'residual non-zero');
+      undoOk ? 'A and q of the retracted premise reproduce the pre-retraction state exactly' : 'residual non-zero');
   }
 
-  // nothing more: every remaining premise's contribution is untouched
   let ledgerOk = true;
   if (retractionReceipt && retractionReceipt.contributionsBefore) {
     for (const p of activePremises) {
-      const before = retractionReceipt.contributionsBefore[p.id];
-      const now = statsJSON(contributionOf(p));
-      if (before !== now) { ledgerOk = false; break; }
+      if (retractionReceipt.contributionsBefore[p.id] !== statsJSON(contributionOf(p))) { ledgerOk = false; break; }
     }
   }
   add('the other premises were not touched', ledgerOk,
     ledgerOk ? activePremises.length + ' contributions byte-identical before and after' : 'a surviving contribution changed');
 
-  const pass = checks.every((c) => c.pass);
-  return { pass, checks, fresh, actualStats, retractedIds: retractedIds.slice() };
+  return { pass: checks.every((c) => c.pass), checks, fresh, actualStats, retractedIds: retractedIds.slice() };
 }
 
 
 /* ============================================================
-   UI — premise ledger, exact weights, predictions, chart, checks.
-   All model arithmetic comes from core.js (exact rationals).
+   UI — premise ledger, exact weights (2 inputs), plane view,
+   predictions and the automatic exactness check.
    ============================================================ */
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -721,7 +747,10 @@ const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const GRID = ['-2', '-1', '0', '0.5', '1', '1.5', '2', '2.5', '3', '4'];
+const QUERIES = [
+  ['-1', '0'], ['0', '0'], ['1', '1'], ['2', '2'], ['3', '1'], ['4', '3'], ['2.5', '0.5'], ['0.5', '3'],
+];
+const pairKey = (a, b) => `${a}|${b}`;
 
 const state = {
   premises: [],
@@ -742,9 +771,9 @@ const state = {
 
 const activePremises = () => state.premises.filter((p) => p.active);
 const frac = (r) => (r ? r.toString() : '—');
-const ex = (r) => (r ? `<span class="frac">${esc(r.toString())}</span>` : '—');
 const dec = (r, d = 4) => (r ? r.dec(d) : '—');
 const fx = (v) => R.of(v).toNumber(); // exact value -> float, for pixel placement only
+const pairList = () => QUERIES.concat(state.queries);
 
 function log(kind, msg, detail) {
   state.log.unshift({ t: new Date(), kind, msg, detail });
@@ -769,17 +798,19 @@ function parseField(raw, label) {
   }
 }
 
-function addPremise({ name, x, y, weight }) {
+function addPremise({ name, x1, x2, y, weight }) {
   const rw = weight === undefined || String(weight).trim() === '' ? R.parse('1') : parseField(weight, 'weight');
   if (rw.sign() <= 0) throw new Error('weight must be greater than zero');
-  const rx = parseField(x, 'x');
-  const ry = parseField(y, 'y');
+  const a = parseField(x1, 'x₁');
+  const b = parseField(x2, 'x₂');
+  const r = parseField(y, 'y');
   state.seq += 1;
   const p = {
     id: 'p' + state.seq,
     name: (name || '').trim() || `premise-${state.seq}`,
-    x: rx.toString(),
-    y: ry.toString(),
+    x1: a.toString(),
+    x2: b.toString(),
+    y: r.toString(),
     weight: rw.toString(),
     active: true,
   };
@@ -788,7 +819,7 @@ function addPremise({ name, x, y, weight }) {
   const sol = retrain();
   state.receipt = null;
   state.check = null;
-  log('add', `Added <b>${esc(p.name)}</b> — x ${esc(p.x)}, y ${esc(p.y)}, weight ${esc(p.weight)}`,
+  log('add', `Added <b>${esc(p.name)}</b> — x₁ ${esc(p.x1)}, x₂ ${esc(p.x2)}, y ${esc(p.y)}, weight ${esc(p.weight)}`,
     'contribution added to the running totals; normal equations re-solved exactly');
   if (!sol.ok) log('warn', 'Solve did not produce weights', sol.reason || '');
   return p;
@@ -805,7 +836,7 @@ function retract(id) {
     contribution,
     contributionsBefore: Object.fromEntries(activePremises().map((q) => [q.id, statsJSON(contributionOf(q))])),
     thetaBefore: state.theta,
-    predsBefore: Object.fromEntries(GRID.map((x) => [x, predict(state.theta, x)])),
+    predsBefore: Object.fromEntries(pairList().map(([a, b]) => [pairKey(a, b), predict(state.theta, [a, b])])),
     at: new Date(),
   };
   state.stats = statsSub(state.stats, contribution);
@@ -838,7 +869,7 @@ function runCheck() {
     activePremises: activePremises(),
     theta: state.theta,
     retractedIds: state.premises.filter((p) => !p.active).map((p) => p.id),
-    grid: GRID.concat(state.queries),
+    grid: pairList(),
     retractionReceipt: state.receipt,
   });
 }
@@ -858,16 +889,15 @@ function resetAll(quiet) {
   retrain();
   if (!quiet) {
     log('reset', 'Cleared the ledger and the model', 'statistics, weights and receipts discarded');
-    render();
+    renderAll();
   }
 }
 
-/* sweep: retract each active premise algebraically and check it */
 function runSweep() {
   const act = activePremises();
   if (act.length < 2) {
     state.sweep = { error: 'Need at least two active premises to sweep.' };
-    render();
+    renderAll();
     return;
   }
   const baseStats = state.stats;
@@ -876,13 +906,12 @@ function runSweep() {
     const contribution = contributionOf(p);
     const after = statsSub(baseStats, contribution);
     const sol = solveStats(after);
-    const rest = act.filter((q) => q.id !== p.id);
     const res = exactnessCheck({
       actualStats: after,
-      activePremises: rest,
+      activePremises: act.filter((q) => q.id !== p.id),
       theta: sol.theta,
       retractedIds: [p.id],
-      grid: GRID,
+      grid: pairList(),
       retractionReceipt: { contribution, statsBefore: baseStats, contributionsBefore: beforeMap },
     });
     return {
@@ -891,14 +920,14 @@ function runSweep() {
       n: res.checks.filter((c) => c.pass).length,
       total: res.checks.length,
       b: sol.theta ? sol.theta.b.toString() : '—',
-      w: sol.theta ? sol.theta.w.toString() : '—',
+      w: sol.theta ? sol.theta.w.map(String).join(', ') : '—',
     };
   });
   state.sweep = { rows, at: new Date() };
   const all = rows.every((r) => r.pass);
   log('check', `Sweep: retracted each of ${rows.length} premises in turn — ${all ? 'all exact' : 'a case failed'}`,
     rows.map((r) => `${r.name}:${r.pass ? 'pass' : 'FAIL'}`).join(' · '));
-  render();
+  renderAll();
 }
 
 /* illustrative contrast: an order-dependent float learner */
@@ -907,27 +936,26 @@ function floatContrast() {
   if (ps.length < 2) return { error: 'Need at least two active premises.' };
   const ETA = 0.1;
   const sgd = (list) => {
-    let b = 0, w = 0;
+    let b = 0, w1 = 0, w2 = 0;
     const deltas = [];
     for (const p of list) {
-      const x = fx(p.x), y = fx(p.y), c = fx(p.weight);
-      const r = b + w * x - y;
-      const db = ETA * c * r, dw = ETA * c * r * x;
-      b -= db; w -= dw;
-      deltas.push({ id: p.id, db, dw });
+      const x1 = fx(p.x1), x2 = fx(p.x2), y = fx(p.y), c = fx(p.weight);
+      const r = b + w1 * x1 + w2 * x2 - y;
+      const db = ETA * c * r, d1 = ETA * c * r * x1, d2 = ETA * c * r * x2;
+      b -= db; w1 -= d1; w2 -= d2;
+      deltas.push({ id: p.id, db, d1, d2 });
     }
-    return { b, w, deltas };
+    return { b, w: [w1, w2], deltas };
   };
   const full = sgd(ps);
   const rows = ps.map((p, i) => {
-    const naive = { b: full.b - full.deltas[i].db, w: full.w - full.deltas[i].dw };
+    const naive = { b: full.b - full.deltas[i].db, w: [full.w[0] - full.deltas[i].d1, full.w[1] - full.deltas[i].d2] };
     const fresh = sgd(ps.filter((q) => q.id !== p.id));
     return {
       name: p.name,
       naive,
       fresh,
-      diff: Math.max(Math.abs(naive.b - fresh.b), Math.abs(naive.w - fresh.w)),
-      leftover: Math.max(Math.abs(full.deltas[i].db), Math.abs(full.deltas[i].dw)),
+      diff: Math.max(Math.abs(naive.b - fresh.b), Math.abs(naive.w[0] - fresh.w[0]), Math.abs(naive.w[1] - fresh.w[1])),
     };
   });
   return { rows, worst: Math.max(...rows.map((r) => r.diff)) };
@@ -947,7 +975,7 @@ function renderBanner() {
         <div class="bline">${n === 0
           ? 'The ledger is empty. Add a premise, or press <b>Run the demo</b>.'
           : 'No retraction is in effect. Retract a premise and the check runs automatically.'}</div>
-        <div class="bsub">${n === 0 ? 'w = 0, b = 0 by convention (nothing to fit)' : `${n} active premise${n === 1 ? '' : 's'} · weights solved exactly`}</div>
+        <div class="bsub">${n === 0 ? 'nothing to fit yet' : `${n} active premise${n === 1 ? '' : 's'} · three weights solved exactly`}</div>
       </div>
       <div class="bmeta">exact rational arithmetic<br>no tolerance, no epsilon</div>`;
     return;
@@ -956,18 +984,18 @@ function renderBanner() {
   const okN = c.checks.filter((x) => x.pass).length;
   const retracted = state.premises.filter((p) => !p.active).map((p) => p.name);
   const noneLeft = activePremises().length === 0;
+  const t = state.theta;
   el.className = 'banner ' + (pass ? 'pass' : 'fail');
-  const tb = c.actualStats && state.theta ? state.theta : null;
   el.innerHTML = `
     <div class="stamp">${pass ? 'PASS' : 'FAIL'}</div>
     <div class="btext">
       <div class="bline">${pass
         ? (noneLeft
-          ? 'Every premise is retracted: the totals are exactly zero and both weights are 0, matching a model trained on nothing.'
+          ? 'Every premise is retracted: the totals are exactly zero and all three weights are 0, matching a model trained on nothing.'
           : `Weights after retraction are <b>exactly</b> the weights of a model trained only on the remaining ${activePremises().length} premise${activePremises().length === 1 ? '' : 's'}.`)
         : 'Post-retraction weights differ from a fresh model. This should be impossible by construction.'}</div>
-      <div class="bsub">${tb
-        ? `b = ${esc(frac(tb.b))} · w = ${esc(frac(tb.w))} · compared as exact rationals`
+      <div class="bsub">${t
+        ? `b = ${esc(frac(t.b))} · w₁ = ${esc(frac(t.w[0]))} · w₂ = ${esc(frac(t.w[1]))} · compared as exact rationals`
         : 'no weights solved'}</div>
     </div>
     <div class="bmeta">${okN}/${c.checks.length} checks passed<br>retracted: ${esc(retracted.join(', ') || '—')}<br>${state.receipt ? state.receipt.at.toLocaleTimeString() : ''}</div>`;
@@ -976,20 +1004,21 @@ function renderBanner() {
 function renderLedger() {
   const body = $('#ledgerBody');
   if (!state.premises.length) {
-    body.innerHTML = `<tr><td colspan="6"><div class="empty">No premises yet. Add one below, or run the demo.</div></td></tr>`;
+    body.innerHTML = `<tr><td colspan="7"><div class="empty">No premises yet. Add one below, or run the demo.</div></td></tr>`;
   } else {
     body.innerHTML = state.premises.map((p) => {
       const open = state.expanded.has(p.id);
       const c = contributionOf(p);
-      const yhat = state.theta ? predict(state.theta, p.x) : null;
+      const yhat = state.theta ? predictAt(p, state.theta) : null;
       const resid = yhat ? yhat.sub(R.of(p.y)) : null;
       const row = `
         <tr class="prem ${p.active ? '' : 'inactive'}">
           <td class="pname-cell">
-            <button class="btn tiny ghost caret" data-toggle="${p.id}" title="show this premise's contribution">${open ? '▾' : '▸'}</button>
+            <button class="btn tiny ghost caret" data-toggle="${p.id}" title="show this premise's contribution" aria-label="Show contribution of ${esc(p.name)}">${open ? '▾' : '▸'}</button>
             <span class="pname">${esc(p.name)}</span>
           </td>
-          <td class="num">${esc(p.x)}</td>
+          <td class="num">${esc(p.x1)}</td>
+          <td class="num">${esc(p.x2)}</td>
           <td class="num">${esc(p.y)}</td>
           <td class="num">${esc(p.weight)}</td>
           <td>${p.active ? '<span class="tag on">active</span>' : '<span class="tag off">retracted</span>'}</td>
@@ -1000,25 +1029,23 @@ function renderLedger() {
           </div></td>
         </tr>`;
       const detail = open ? `
-        <tr class="detail"><td colspan="6">
+        <tr class="detail"><td colspan="7">
           <div class="kv">
-            <span class="k">A (2×2)</span>
-            <span class="v matrix bracket">
-              <span>${esc(c.A[0][0].toString())}</span><span>${esc(c.A[0][1].toString())}</span>
-              <span>${esc(c.A[1][0].toString())}</span><span>${esc(c.A[1][1].toString())}</span>
+            <span class="k">A (3×3)</span>
+            <span class="v matrix m3 bracket">
+              ${c.A.map((row2) => row2.map((v) => `<span>${esc(v.toString())}</span>`).join('')).join('')}
             </span>
-            <span class="k">q (2)</span>
-            <span class="v matrix bracket"><span>${esc(c.q[0].toString())}</span><span>${esc(c.q[1].toString())}</span></span>
-            <span class="k">ŷ at x</span><span class="v">${yhat ? esc(frac(yhat)) + '  (' + esc(dec(yhat, 4)) + ')' : '—'}</span>
+            <span class="k">q (3)</span>
+            <span class="v matrix bracket">${c.q.map((v) => `<span>${esc(v.toString())}</span>`).join('')}</span>
+            <span class="k">ŷ at (x₁, x₂)</span><span class="v">${yhat ? esc(frac(yhat)) + '  (' + esc(dec(yhat, 4)) + ')' : '—'}</span>
             <span class="k">residual</span><span class="v">${resid && p.active ? esc(frac(resid)) : '—'}</span>
-            <span class="k">gradient</span><span class="v">${resid && p.active ? esc(frac(resid.mul(R.of(p.weight)).mul(R.parse('2')))) + ' · (1, ' + esc(p.x) + ')' : '— (not in the objective)'}</span>
+            <span class="k">gradient</span><span class="v">${resid && p.active ? esc(frac(resid.mul(R.of(p.weight)).mul(R.parse('2')))) + ' · (1, ' + esc(p.x1) + ', ' + esc(p.x2) + ')' : '— (not in the objective)'}</span>
           </div>
           <p class="hint">This row is the premise's entire footprint. Nothing else in the model refers to it.</p>
         </td></tr>` : '';
       return row + detail;
     }).join('');
   }
-
   const n = activePremises().length;
   $('#ledgerMeta').textContent = `${n} active / ${state.premises.length} total`;
 }
@@ -1029,59 +1056,62 @@ function renderWeights() {
   const n = activePremises().length;
   if (!t || n === 0) {
     el.innerHTML = `<div class="empty">${state.premises.length
-      ? 'Every premise is retracted. With nothing left to fit, both weights are 0 by convention.'
+      ? 'Every premise is retracted. With nothing left to fit, all three weights are 0 by convention.'
       : 'Add a premise to solve the weights.'}</div>`;
     return;
   }
+  const sgn = (r) => (r.sign() < 0 ? '− ' + esc(frac(r.neg())) : '+ ' + esc(frac(r)));
   el.innerHTML = `
-    <div class="wgrid">
+    <div class="wgrid three">
       <div class="wcell">
         <div class="wlabel">bias b</div>
         <div class="wval">${esc(frac(t.b))}</div>
         <div class="wdec">≈ ${esc(dec(t.b, 6))}</div>
       </div>
       <div class="wcell">
-        <div class="wlabel">slope w</div>
-        <div class="wval">${esc(frac(t.w))}</div>
-        <div class="wdec">≈ ${esc(dec(t.w, 6))}</div>
+        <div class="wlabel">w₁ · x₁</div>
+        <div class="wval">${esc(frac(t.w[0]))}</div>
+        <div class="wdec">≈ ${esc(dec(t.w[0], 6))}</div>
+      </div>
+      <div class="wcell">
+        <div class="wlabel">w₂ · x₂</div>
+        <div class="wval">${esc(frac(t.w[1]))}</div>
+        <div class="wdec">≈ ${esc(dec(t.w[1], 6))}</div>
       </div>
     </div>
-    <div class="modeline">ŷ(x) = ${t.b.sign() < 0 ? '− ' + esc(frac(t.b.neg())) : esc(frac(t.b))} ${t.w.sign() < 0 ? '−' : '+'} ${esc(frac(t.w.abs()))}·x</div>
-    <div class="pillnote">Rank ${state.rank} of 2 · fitted on ${activePremises().length} premise${activePremises().length === 1 ? '' : 's'}</div>
-    ${state.singular ? `<div class="warnbox"><b>Underdetermined.</b> The remaining premises do not pin down both weights, so the free direction is held at zero. Both the retraction path and the fresh fit use the same deterministic rule, so the check is still exact.</div>` : ''}
-    ${state.receipt ? `<div class="pillnote">Before retracting <b>${esc(state.receipt.name)}</b>: b = ${esc(frac(state.receipt.thetaBefore.b))}, w = ${esc(frac(state.receipt.thetaBefore.w))}</div>` : ''}
+    <div class="modeline">ŷ = ${esc(frac(t.b))} ${sgn(t.w[0])}·x₁ ${sgn(t.w[1])}·x₂</div>
+    <div class="pillnote">Rank ${state.rank} of 3 · fitted on ${n} premise${n === 1 ? '' : 's'}</div>
+    ${state.singular ? `<div class="warnbox"><b>Underdetermined.</b> The remaining premises do not pin down all three weights, so the free directions are held at zero. Both the retraction path and the fresh fit use the same deterministic rule, so the check stays exact.</div>` : ''}
+    ${state.receipt ? `<div class="pillnote">Before retracting <b>${esc(state.receipt.name)}</b>: b = ${esc(frac(state.receipt.thetaBefore.b))}, w₁ = ${esc(frac(state.receipt.thetaBefore.w[0]))}, w₂ = ${esc(frac(state.receipt.thetaBefore.w[1]))}</div>` : ''}
   `;
 }
 
 function renderStats() {
   const s = state.stats;
-  const terms = gradientTerms(activePremises(), state.theta);
-  const g = gradientSum(terms);
-  const zero = g.g0.isZero() && g.g1.isZero();
+  const g = gradientSum(gradientTerms(activePremises(), state.theta));
+  const zero = g.every((v) => v.isZero());
   $('#stats').innerHTML = `
     <div class="kv">
       <span class="k">A</span>
-      <span class="v matrix bracket">
-        <span>${esc(s.A[0][0].toString())}</span><span>${esc(s.A[0][1].toString())}</span>
-        <span>${esc(s.A[1][0].toString())}</span><span>${esc(s.A[1][1].toString())}</span>
-      </span>
+      <span class="v matrix m3 bracket">${s.A.map((row) => row.map((v) => `<span>${esc(v.toString())}</span>`).join('')).join('')}</span>
       <span class="k">q</span>
-      <span class="v matrix bracket"><span>${esc(s.q[0].toString())}</span><span>${esc(s.q[1].toString())}</span></span>
+      <span class="v matrix bracket">${s.q.map((v) => `<span>${esc(v.toString())}</span>`).join('')}</span>
       <span class="k">Σ grad</span>
-      <span class="v">${zero ? '<span class="tag on">0, 0</span>' : esc(frac(g.g0)) + ', ' + esc(frac(g.g1))}</span>
+      <span class="v">${zero ? '<span class="tag on">0, 0, 0</span>' : g.map((v) => esc(frac(v))).join(', ')}</span>
     </div>
-    <p class="hint">A and q are the running totals. Every premise adds exactly one 2×2 block and one 2-vector; nothing is stored twice. The weights are the solution of <span class="mono">A θ = q</span>.</p>
+    <p class="hint">A and q are the running totals. Every premise adds exactly one 3×3 block and one 3-vector; nothing is stored twice. The weights solve <span class="mono">A θ = q</span>.</p>
   `;
 }
 
 function renderPreds() {
   const hasModel = state.theta && activePremises().length > 0;
-  const rows = GRID.concat(state.queries).map((x) => {
-    const now = hasModel ? predict(state.theta, x) : null;
-    const before = state.receipt ? state.receipt.predsBefore[x] : null;
+  const rows = pairList().map(([a, b]) => {
+    const now = hasModel ? predict(state.theta, [a, b]) : null;
+    const before = state.receipt ? state.receipt.predsBefore[pairKey(a, b)] : null;
     const delta = now && before ? now.sub(before) : null;
     return `<tr>
-      <td class="num">${esc(x)}</td>
+      <td class="num">${esc(a)}</td>
+      <td class="num">${esc(b)}</td>
       <td class="num" title="${now ? esc(frac(now)) : ''}">${now ? esc(dec(now, 4)) : '—'}</td>
       <td class="num" title="${delta ? esc(frac(delta)) : ''}">${delta ? (delta.isZero() ? '0' : esc(dec(delta, 4))) : '—'}</td>
     </tr>`;
@@ -1138,17 +1168,17 @@ function renderContrast() {
   if (c.error) { el.innerHTML = `<p class="hint">${esc(c.error)}</p>`; return; }
   el.innerHTML = `
     <table>
-      <thead><tr><th>retract</th><th class="num">naive undo (b, w)</th><th class="num">fresh SGD (b, w)</th><th class="num">gap</th></tr></thead>
+      <thead><tr><th>retract</th><th class="num">naive undo</th><th class="num">fresh SGD</th><th class="num">gap</th></tr></thead>
       <tbody>${c.rows.map((r) => `
         <tr>
           <td>${esc(r.name)}</td>
-          <td class="num">${r.naive.b.toFixed(4)}, ${r.naive.w.toFixed(4)}</td>
-          <td class="num">${r.fresh.b.toFixed(4)}, ${r.fresh.w.toFixed(4)}</td>
-          <td class="num">${r.diff === 0 ? '0' : r.diff.toExponential(2)}</td>
+          <td class="num">${r.naive.b.toFixed(2)}, ${r.naive.w[0].toFixed(2)}, ${r.naive.w[1].toFixed(2)}</td>
+          <td class="num">${r.fresh.b.toFixed(2)}, ${r.fresh.w[0].toFixed(2)}, ${r.fresh.w[1].toFixed(2)}</td>
+          <td class="num">${r.diff === 0 ? '0' : r.diff.toExponential(1)}</td>
         </tr>`).join('')}
       </tbody>
     </table>
-    <p class="hint">Worst gap <span class="mono">${c.worst.toExponential(2)}</span>. These are not rounding dust: each recorded step was computed from the weights that earlier premises had already moved, so subtracting one step does not reproduce the model trained on the rest. The exact model above avoids the problem by never iterating.</p>`;
+    <p class="hint">Worst gap <span class="mono">${c.worst.toExponential(2)}</span> on (b, w₁, w₂). Not rounding dust: each recorded step was computed from weights that earlier premises had already moved, so subtracting one step does not reproduce the model trained on the rest. The exact model above avoids this by never iterating.</p>`;
 }
 
 function renderLog() {
@@ -1163,7 +1193,7 @@ function renderLog() {
     : `<div class="empty">Events appear here as you work.</div>`;
 }
 
-/* ---------------- chart ---------------- */
+/* ---------------- plane view ---------------- */
 
 function niceDomain(vals, padFrac, fallback) {
   let lo = Math.min(...vals), hi = Math.max(...vals);
@@ -1173,78 +1203,110 @@ function niceDomain(vals, padFrac, fallback) {
   return [lo - pad, hi + pad];
 }
 
+/* clip a segment to an axis-aligned box (Liang-Barsky) */
+function clipSeg(x0, y0, x1, y1, box) {
+  const dx = x1 - x0, dy = y1 - y0;
+  let t0 = 0, t1 = 1;
+  const p = [-dx, dx, -dy, dy];
+  const q = [x0 - box.x0, box.x1 - x0, y0 - box.y0, box.y1 - y0];
+  for (let i = 0; i < 4; i++) {
+    if (p[i] === 0) { if (q[i] < 0) return null; continue; }
+    const r = q[i] / p[i];
+    if (p[i] < 0) { if (r > t1) return null; if (r > t0) t0 = r; }
+    else { if (r < t0) return null; if (r < t1) t1 = r; }
+  }
+  return [x0 + t0 * dx, y0 + t0 * dy, x0 + t1 * dx, y0 + t1 * dy];
+}
+
+const fmtTick = (v) => (Math.abs(v) >= 100 ? v.toFixed(0) : Math.abs(v) >= 10 ? v.toFixed(1) : v.toFixed(2));
+
+function contoursFor(theta, box, n = 6) {
+  if (!theta) return { lines: [], flat: null, range: null };
+  const b = theta.b.toNumber(), w1 = theta.w[0].toNumber(), w2 = theta.w[1].toNumber();
+  const f = (x, y) => b + w1 * x + w2 * y;
+  const corners = [f(box.x0, box.y0), f(box.x1, box.y0), f(box.x0, box.y1), f(box.x1, box.y1)];
+  const fmin = Math.min(...corners), fmax = Math.max(...corners);
+  const span = Math.hypot(box.x1 - box.x0, box.y1 - box.y0) * 4;
+  const norm = Math.hypot(w1, w2);
+  const lines = [];
+  if (norm < 1e-12) return { lines: [], flat: b, range: [fmin, fmax] };
+  const dir = { x: -w2 / norm, y: w1 / norm };
+  for (let i = 1; i <= n; i++) {
+    const level = fmin + ((fmax - fmin) * i) / (n + 1);
+    // a point on the level set
+    let ax, ay;
+    if (Math.abs(w1) >= Math.abs(w2)) { ax = (level - b) / w1; ay = 0; }
+    else { ax = 0; ay = (level - b) / w2; }
+    const seg = clipSeg(ax - dir.x * span, ay - dir.y * span, ax + dir.x * span, ay + dir.y * span, box);
+    if (seg) lines.push({ level, seg });
+  }
+  return { lines, flat: null, range: [fmin, fmax] };
+}
+
 function renderChart() {
   const el = $('#chart');
   const ps = state.premises;
   if (!ps.length) {
-    el.innerHTML = `<text x="350" y="180" text-anchor="middle" class="ax-txt">no premises to plot</text>`;
+    el.innerHTML = `<text x="350" y="200" text-anchor="middle" class="ax-txt">no premises to plot</text>`;
     return;
   }
-  const W = 700, H = 380, M = { t: 18, r: 20, b: 34, l: 48 };
+  const W = 700, H = 420, M = { t: 22, r: 22, b: 40, l: 54 };
   const iw = W - M.l - M.r, ih = H - M.t - M.b;
 
-  const xsData = ps.map((p) => fx(p.x));
-  const [x0, x1] = niceDomain(xsData, 0.22, [-1, 4]);
-
-  const ysData = ps.map((p) => fx(p.y));
-  const preds = [];
-  if (state.theta) for (const x of [x0, x1]) preds.push(predict(state.theta, x).toNumber());
-  if (state.receipt && state.receipt.thetaBefore) {
-    for (const x of [x0, x1]) preds.push(predict(state.receipt.thetaBefore, x).toNumber());
-  }
-  const [y0, y1] = niceDomain(ysData.concat(preds), 0.14, [0, 6]);
-
+  const [x0, x1] = niceDomain(ps.map((p) => fx(p.x1)), 0.22, [-1, 4]);
+  const [y0, y1] = niceDomain(ps.map((p) => fx(p.x2)), 0.22, [0, 3]);
+  const box = { x0, x1, y0, y1 };
   const px = (x) => M.l + ((x - x0) / (x1 - x0)) * iw;
   const py = (y) => M.t + ih - ((y - y0) / (y1 - y0)) * ih;
 
-  const nT = 5;
   let grid = '';
+  const nT = 5;
   for (let i = 0; i < nT; i++) {
     const yv = y0 + ((y1 - y0) * i) / (nT - 1);
     grid += `<line class="ax-grid" x1="${M.l}" y1="${py(yv).toFixed(1)}" x2="${W - M.r}" y2="${py(yv).toFixed(1)}"/>`;
-    grid += `<text class="ax-txt" x="${M.l - 8}" y="${(py(yv) + 3).toFixed(1)}" text-anchor="end">${yv.toFixed(1)}</text>`;
+    grid += `<text class="ax-txt" x="${M.l - 8}" y="${(py(yv) + 3).toFixed(1)}" text-anchor="end">${fmtTick(yv)}</text>`;
   }
-  const nX = 6;
-  for (let i = 0; i < nX; i++) {
-    const xv = x0 + ((x1 - x0) * i) / (nX - 1);
-    grid += `<text class="ax-txt" x="${px(xv).toFixed(1)}" y="${H - M.b + 16}" text-anchor="middle">${xv.toFixed(1)}</text>`;
-  }
-  const zeroIn = y0 <= 0 && y1 >= 0;
-  const axes = zeroIn
-    ? `<line class="ax-zero" x1="${M.l}" y1="${py(0).toFixed(1)}" x2="${W - M.r}" y2="${py(0).toFixed(1)}"/>`
-    : '';
-
-  let lines = '';
-  if (state.receipt && state.receipt.thetaBefore) {
-    const tb = state.receipt.thetaBefore;
-    lines += `<line class="fit-ghost" x1="${px(x0)}" y1="${py(tb.b.add(tb.w.mul(R.parse(String(x0)))).toNumber())}" x2="${px(x1)}" y2="${py(tb.b.add(tb.w.mul(R.parse(String(x1)))).toNumber())}"/>`;
-  }
-  if (state.theta) {
-    const b = state.theta.b.toNumber(), w = state.theta.w.toNumber();
-    lines += `<line class="fit-line" x1="${px(x0)}" y1="${py(b + w * x0)}" x2="${px(x1)}" y2="${py(b + w * x1)}"/>`;
+  for (let i = 0; i < 6; i++) {
+    const xv = x0 + ((x1 - x0) * i) / 5;
+    grid += `<text class="ax-txt" x="${px(xv).toFixed(1)}" y="${H - M.b + 16}" text-anchor="middle">${fmtTick(xv)}</text>`;
   }
 
-  let resid = '';
+  const cur = contoursFor(state.theta, box, 6);
+  const ghost = state.receipt && state.receipt.thetaBefore ? contoursFor(state.receipt.thetaBefore, box, 6) : null;
+
+  const drawLines = (set, cls) => set.lines.map((l) => {
+    const [ax, ay, bx, by] = l.seg;
+    return `<line class="${cls}" x1="${px(ax).toFixed(1)}" y1="${py(ay).toFixed(1)}" x2="${px(bx).toFixed(1)}" y2="${py(by).toFixed(1)}"/>`;
+  }).join('');
+
+  const ghostLines = ghost ? drawLines(ghost, 'iso-line ghost') : '';
+  const curLines = drawLines(cur, 'iso-line');
+  const labels = cur.lines.slice(1, -1).map((l) => {
+    const [ax, ay] = l.seg;
+    const lx = Math.min(Math.max(px(ax) + 5, M.l + 6), W - M.r - 34);
+    const ly = Math.min(Math.max(py(ay) - 5, M.t + 12), H - M.b - 4);
+    return `<text class="iso-label" x="${lx.toFixed(1)}" y="${ly.toFixed(1)}">${fmtTick(l.level)}</text>`;
+  }).join('');
+
   let pts = '';
   for (const p of ps) {
-    const xv = fx(p.x), yv = fx(p.y);
-    const cx = px(xv), cy = py(yv);
-    if (p.active && state.theta) {
-      const yhat = predict(state.theta, p.x).toNumber();
-      resid += `<line class="resid" x1="${cx}" y1="${cy}" x2="${cx}" y2="${py(yhat)}"/>`;
-    }
-    pts += `<circle class="${p.active ? 'pt' : 'pt-retracted'}" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="6">
-      <title>${esc(p.name)} — x ${esc(p.x)}, y ${esc(p.y)}${p.active ? '' : ' (retracted)'}</title></circle>`;
-    const lx = Math.min(cx + 10, W - M.r - 4);
-    const ly = cy - 10 < M.t + 10 ? cy + 18 : cy - 10;
-    pts += `<text class="${p.active ? 'plabel' : 'plabel-retracted'}" x="${lx.toFixed(1)}" y="${ly.toFixed(1)}">${esc(p.name)}</text>`;
+    const cx = px(fx(p.x1)), cy = py(fx(p.x2));
+    const yhat = state.theta ? predictAt(p, state.theta) : null;
+    const resid = yhat ? yhat.sub(R.of(p.y)) : null;
+    pts += `<circle class="${p.active ? 'pt' : 'pt-retracted'}" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="6.5">
+      <title>${esc(p.name)} — (${esc(p.x1)}, ${esc(p.x2)}) → ${esc(p.y)}${p.active ? '' : ' (retracted)'}</title></circle>`;
+    const lx = Math.min(cx + 11, W - M.r - 6);
+    const ly = cy - 11 < M.t + 10 ? cy + 20 : cy - 11;
+    const res = p.active && resid ? ` · r ${dec(resid, 2)}` : '';
+    pts += `<text class="${p.active ? 'plabel' : 'plabel-retracted'}" x="${lx.toFixed(1)}" y="${ly.toFixed(1)}">${esc(p.name)}${res}</text>`;
   }
 
   el.innerHTML = `
-    <rect x="${M.l}" y="${M.t}" width="${iw}" height="${ih}" fill="none" stroke="#efeade"/>
-    ${grid}${axes}
-    ${lines}${resid}${pts}
-    <text class="ax-txt" x="${M.l}" y="${M.t - 6}">ŷ = b + w·x</text>`;
+    <rect x="${M.l}" y="${M.t}" width="${iw}" height="${ih}" fill="#fffefa" stroke="#efeade"/>
+    ${grid}${curLines}${ghostLines}${labels}${pts}
+    <text class="ax-txt" x="${M.l}" y="${M.t - 8}">x₁</text>
+    <text class="ax-txt" x="${W - M.r + 6}" y="${M.t + 10}" text-anchor="end">x₂ ↑</text>
+    ${cur.flat !== null ? `<text class="ax-txt" x="${W / 2}" y="${M.t + 24}" text-anchor="middle">plane is flat at ŷ = ${fmtTick(cur.flat)} (both slopes zero)</text>` : ''}`;
 }
 
 function renderAll() {
@@ -1264,7 +1326,7 @@ function renderAll() {
   $('#chipExact').className = 'chip' + (state.check ? (state.check.pass ? ' on' : '') : '');
   $('#btnCheck').disabled = !state.receipt;
 }
-function render() { renderAll(); }
+const render = renderAll;
 
 /* ---------------- demo ---------------- */
 
@@ -1274,28 +1336,31 @@ async function runDemo() {
   demoRunning = true; state.busy = true;
   setBusy(true);
   resetAll(true);
-  log('demo', 'Demo started', 'three premises, then retract the middle one');
+  log('demo', 'Demo started', 'five premises in two input dimensions, then retract the middle one');
   renderAll();
   await sleep(300);
 
   const seeds = [
-    { name: 'reading-A', x: '1', y: '3' },
-    { name: 'reading-B', x: '2', y: '5' },
-    { name: 'reading-C', x: '3', y: '4' },
+    { name: 'reading-A', x1: '1', x2: '0.5', y: '3' },
+    { name: 'reading-B', x1: '2', x2: '1.5', y: '5' },
+    { name: 'reading-C', x1: '3', x2: '2', y: '4.5' },
+    { name: 'reading-D', x1: '1.5', x2: '2.5', y: '4' },
+    { name: 'reading-E', x1: '3.5', x2: '0.8', y: '6' },
   ];
   for (const s of seeds) {
     addPremise(s);
     renderAll();
-    await sleep(520);
+    await sleep(430);
   }
-  log('train', `Solved on ${activePremises().length} premises`, `b = ${frac(state.theta.b)}, w = ${frac(state.theta.w)}`);
+  log('train', `Solved on ${activePremises().length} premises`,
+    `b = ${frac(state.theta.b)}, w₁ = ${frac(state.theta.w[0])}, w₂ = ${frac(state.theta.w[1])}`);
   renderAll();
-  await sleep(620);
+  await sleep(520);
 
-  const middle = state.premises[1];
+  const middle = state.premises[2];
   retract(middle.id);
   renderAll();
-  await sleep(400);
+  await sleep(420);
 
   const c = state.check;
   log('demo', `Demo complete — exactness ${c && c.pass ? 'PASS' : 'FAIL'}`,
@@ -1314,43 +1379,42 @@ function setBusy(b) {
 function downloadReceipt() {
   const payload = {
     app: 'premise-retraction-playground',
+    model: `yhat = b + w1*x1 + w2*x2 (NF = ${NF})`,
     generated_at: new Date().toISOString(),
     arithmetic: 'exact rationals (BigInt numerator/denominator); no floating point in model or check',
     premises: state.premises.map((p) => {
       const c = contributionOf(p);
       return {
-        id: p.id, name: p.name, x: p.x, y: p.y, weight: p.weight, active: p.active,
-        contribution: {
-          A: c.A.map((r) => r.map(String)),
-          q: c.q.map(String),
-        },
+        id: p.id, name: p.name, x1: p.x1, x2: p.x2, y: p.y, weight: p.weight, active: p.active,
+        contribution: { A: c.A.map((r) => r.map(String)), q: c.q.map(String) },
       };
     }),
-    totals: {
-      A: state.stats.A.map((r) => r.map(String)),
-      q: state.stats.q.map(String),
-    },
-    weights: state.theta ? { b: state.theta.b.toString(), w: state.theta.w.toString() } : null,
+    totals: { A: state.stats.A.map((r) => r.map(String)), q: state.stats.q.map(String) },
+    weights: state.theta ? { b: state.theta.b.toString(), w1: state.theta.w[0].toString(), w2: state.theta.w[1].toString() } : null,
     rank: state.rank,
     last_retraction: state.receipt
       ? {
         premise: state.receipt.name,
         at: state.receipt.at.toISOString(),
-        weights_before: { b: state.receipt.thetaBefore.b.toString(), w: state.receipt.thetaBefore.w.toString() },
-        contribution: {
-          A: state.receipt.contribution.A.map((r) => r.map(String)),
-          q: state.receipt.contribution.q.map(String),
+        weights_before: {
+          b: state.receipt.thetaBefore.b.toString(),
+          w1: state.receipt.thetaBefore.w[0].toString(),
+          w2: state.receipt.thetaBefore.w[1].toString(),
         },
+        contribution: { A: state.receipt.contribution.A.map((r) => r.map(String)), q: state.receipt.contribution.q.map(String) },
       }
       : null,
     exactness_check: state.check
       ? {
         pass: state.check.pass,
         checks: state.check.checks.map((k) => ({ name: k.name, pass: k.pass, detail: k.detail })),
-        fresh_weights: {
-          b: state.check.fresh.theta.b.toString(),
-          w: state.check.fresh.theta.w.toString(),
-        },
+        fresh_weights: state.check.fresh.theta
+          ? {
+            b: state.check.fresh.theta.b.toString(),
+            w1: state.check.fresh.theta.w[0].toString(),
+            w2: state.check.fresh.theta.w[1].toString(),
+          }
+          : null,
       }
       : null,
   };
@@ -1374,7 +1438,8 @@ function bind() {
     try {
       addPremise({
         name: fd.get('name'),
-        x: fd.get('x'),
+        x1: fd.get('x1'),
+        x2: fd.get('x2'),
         y: fd.get('y'),
         weight: fd.get('weight'),
       });
@@ -1400,31 +1465,24 @@ function bind() {
 
   $('#btnDemo').addEventListener('click', runDemo);
   $('#btnReset').addEventListener('click', () => { resetAll(false); });
-  $('#btnCheck').addEventListener('click', () => {
-    state.check = runCheck();
-    if (state.check) {
-      log('check', state.check.pass ? 'Manual exactness check: PASS' : 'Manual exactness check: FAIL',
-        `${state.check.checks.filter((c) => c.pass).length}/${state.check.checks.length} checks`);
-    }
-    renderAll();
-  });
   $('#btnTrain').addEventListener('click', () => {
     retrain();
-    log('train', `Re-solved the normal equations from the running totals`,
-      state.theta ? `b = ${frac(state.theta.b)}, w = ${frac(state.theta.w)} on ${activePremises().length} premises` : 'no premises');
+    log('train', 'Re-solved the normal equations from the running totals',
+      state.theta ? `b = ${frac(state.theta.b)}, w = (${state.theta.w.map(String).join(', ')}) on ${activePremises().length} premises` : 'no premises');
     state.check = state.receipt ? runCheck() : null;
     renderAll();
   });
 
   $('#qForm').addEventListener('submit', (e) => {
     e.preventDefault();
-    const raw = new FormData(e.target).get('qx');
+    const fd = new FormData(e.target);
     try {
-      const r = R.parse(raw);
-      const known = GRID.concat(state.queries).some((g) => R.of(g).eq(r));
+      const a = R.parse(fd.get('q1'));
+      const b = R.parse(fd.get('q2'));
+      const known = pairList().some(([g1, g2]) => R.of(g1).eq(a) && R.of(g2).eq(b));
       if (!known) {
-        state.queries.push(r.toString());
-        log('predict', `Added query point x = ${r.toString()}`, 'evaluated exactly, and included in the check');
+        state.queries.push([a.toString(), b.toString()]);
+        log('predict', `Added query point (x₁, x₂) = (${a.toString()}, ${b.toString()})`, 'evaluated exactly, and included in the check');
       }
       $('#qErr').textContent = '';
       e.target.reset();
@@ -1435,16 +1493,22 @@ function bind() {
     }
   });
 
+  $('#btnCheck').addEventListener('click', () => {
+    state.check = runCheck();
+    if (state.check) {
+      log('check', state.check.pass ? 'Manual exactness check: PASS' : 'Manual exactness check: FAIL',
+        `${state.check.checks.filter((c) => c.pass).length}/${state.check.checks.length} checks`);
+    }
+    renderAll();
+  });
   $('#btnSweep').addEventListener('click', runSweep);
   $('#btnContrast').addEventListener('click', () => { state.contrast = floatContrast(); renderAll(); });
   $('#btnExport').addEventListener('click', downloadReceipt);
 }
 
-/* ---------------- init ---------------- */
-
 bind();
 resetAll(true);
-log('boot', 'Model ready', 'exact rational arithmetic; nothing trained yet');
+log('boot', 'Model ready', 'two input dimensions, exact rational arithmetic; nothing trained yet');
 renderAll();
 
 </script>
